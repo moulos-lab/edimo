@@ -5,9 +5,10 @@ use boolean;
 use File::Basename;
 use File::Spec;
 use Getopt::Long;
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use Pod::Usage;
 
-use Data::Dumper;
+#use Data::Dumper;
 
 select(STDOUT);
 $|=1;
@@ -40,23 +41,47 @@ while (my $line = <MAP>) {
 }
 close(MAP);
 
-open(DB,$dbsnp) or die "\nCan't open $dbsnp\n";
+
 open(OUT,">$dout");
-while (my $line = <DB>) {
-    $line =~ s/\r|\n$//g;
-    
-    print " Processed $. lines\n" if ($.%1000000 == 0 && !$silent);
-    
-    if ($line =~ m/^#/i) {
-        print OUT $line,"\n" ;
+if ($file =~ m/\.gz$/) {
+    my $z = new IO::Uncompress::Gunzip $file 
+        or die "\ngunzip failed: $GunzipError\n";
+    while (my $line = <z>) {
+        $line =~ s/\r|\n$//g;
+        
+        print " Processed $. lines\n" if ($.%1000000 == 0 && !$silent);
+        
+        if ($line =~ m/^#/i) {
+            print OUT $line,"\n" ;
+        }
+        else {
+            my @dbline = split("\t",$line);
+            $dbline[0] = $map{$dbline[0]};
+            next if ($dbline[0] =~ m/chrUn|random|fix|alt|NW/ && $canonical);
+            $dbline[0] =~ s/chrM/chrMT/g if $dbline[0] =~ m/chrM/;
+            $dbline[0] =~ s/chr//g if ($style eq "ensembl");
+            print OUT join("\t",@dbline),"\n";
+        }
     }
-    else {
-        my @dbline = split("\t",$line);
-        $dbline[0] = $map{$dbline[0]};
-        next if ($dbline[0] =~ m/chrUn|random|fix|alt|NW/ && $canonical);
-        $dbline[0] =~ s/chrM/chrMT/g if $dbline[0] =~ m/chrM/;
-        $dbline[0] =~ s/chr//g if ($style eq "ensembl");
-        print OUT join("\t",@dbline),"\n";
+}
+else {
+    open(DB,$dbsnp) or die "\nCan't open $dbsnp\n";
+    while (my $line = <DB>) {
+        $line =~ s/\r|\n$//g;
+        
+        print " Processed $. lines\n" if ($.%1000000 == 0 && !$silent);
+        
+        if ($line =~ m/^#/i) {
+            print OUT $line,"\n" ;
+        }
+        else {
+            my @dbline = split("\t",$line);
+            $dbline[0] = $map{$dbline[0]};
+            next if ($dbline[0] =~ m/chrUn|random|fix|alt|NW/ && $canonical);
+            $dbline[0] =~ s/chrM/chrMT/g if $dbline[0] =~ m/chrM/;
+            $dbline[0] =~ s/chr//g if ($style eq "ensembl");
+            print OUT join("\t",@dbline),"\n";
+        }
     }
 }
 close(OUT);
