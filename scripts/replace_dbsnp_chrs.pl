@@ -43,8 +43,8 @@ close(MAP);
 
 
 open(OUT,">$dout");
-if ($file =~ m/\.gz$/) {
-    my $z = new IO::Uncompress::Gunzip $file 
+if ($dbsnp =~ m/\.gz$/) {
+    my $z = new IO::Uncompress::Gunzip $dbsnp 
         or die "\ngunzip failed: $GunzipError\n";
     while (my $line = <z>) {
         $line =~ s/\r|\n$//g;
