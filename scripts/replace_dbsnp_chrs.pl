@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 
 use strict;
-use boolean;
 use File::Basename;
 use File::Spec;
 use Getopt::Long;
@@ -112,8 +111,6 @@ sub check_inputs {
         if (!$mapfile);
     $stop .= "--- Please specify input dbSNP file ---\n" 
         if (!$dbsnp);
-    $stop .= "--- Please specify output dbSNP file ---\n" 
-        if (!$dout);
     $stop .= "--- Please specify output dbSNP file ---\n" 
         if (!$dout);
     $stop .= "--style must be one of ensembl, ucsc\n"
