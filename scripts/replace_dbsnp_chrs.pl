@@ -33,6 +33,7 @@ our $help;
 
 my %map;
 open(MAP,$mapfile) or die "\nCan't open $mapfile\n";
+print "Reading map file\n";
 while (my $line = <MAP>) {
     $line =~ s/\r|\n$//g;
     my @conts = split("\t",$line);
