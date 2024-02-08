@@ -40,12 +40,11 @@ while (my $line = <MAP>) {
 }
 close(MAP);
 
-
 open(OUT,">$dout");
 if ($dbsnp =~ m/\.gz$/) {
     my $z = new IO::Uncompress::Gunzip $dbsnp 
         or die "\ngunzip failed: $GunzipError\n";
-    while (my $line = <z>) {
+    while (my $line = <$z>) {
         $line =~ s/\r|\n$//g;
         
         print " Processed $. lines\n" if ($.%1000000 == 0 && !$silent);
