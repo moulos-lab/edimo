@@ -1,0 +1,30 @@
+Package: edimoR
+Type: Package
+Title: An R package to support EDIMO app backend operatins
+Author: Panagiotis Moulos <moulos@fleming.gr>
+Maintainer: Panagiotis Moulos <moulos@fleming.gr>
+Depends:
+    R (>= 4.0.0),
+    plumber,
+    mongolite
+Imports:
+    parallel
+Suggests:
+    rmarkdown
+Description: backend APIs and analysis pipelines for the annotation
+    of EDIMO VCF files.
+License: GPL (>= 3)
+Encoding: UTF-8
+LazyLoad: yes
+LazyData: yes
+URL: https://github.com/moulos_lab/edimo
+biocViews: Software, DataImport
+VignetteBuilder: knitr
+Authors@R: c(person(given="Panagiotis", family="Moulos",
+    email="moulos@fleming.gr", role=c("aut", "cre")))
+Version: 0.0.1
+Date: 2024-11-01
+Collate:
+    'auth.R'
+    'mdb.R'
+    'utils.R'
