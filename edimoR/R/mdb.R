@@ -1,4 +1,4 @@
-mongoConnect <- function(conf,db) {
+openMongo <- function(conf,db,collection="test") {
     if (!requireNamespace("mongolite"))
         stop("R package mongolite is required!")
     if (missing(db))
@@ -10,19 +10,49 @@ mongoConnect <- function(conf,db) {
     else
         creds <- conf
     
-    creds <- .validateCreds(creds[[db]])
-    uri <- .mongoURI(creds)
+    if ("databases" %in% names(conf))
+        creds <- .validateCreds(creds$databases[[db]])
+    else
+        creds <- .validateCreds(creds)
     
-    if (!.checkSanityCollection(uri)) {
+    if (!.checkSanityCollection(creds)) {
         message("Creating collections...")
-        .initCollections(uri)
+        .initCollections(creds)
     }
     
-    #return(con)
+    con <- mongo(url=.mongoURI(creds),collection=collection)
+    return(con)
 }
 
-.checkSanityCollection <- function(uri) {
-    con <- mongo(url=uri)
+# A lighter version - assuming ready database and credentials
+mongoConnect <- function(conf,collection) {
+    if (!requireNamespace("mongolite"))
+        stop("R package mongolite is required!")
+    
+    .validateConf(conf)
+    if (is.character(conf))
+        creds <- .validateCreds(fromJSON(conf))
+    else
+        creds <- .validateCreds(conf)
+    return(mongo(url=.mongoURI(creds),collection=collection))
+}
+
+mongoDisconnect <- function(con) {
+    invisible(con$disconnect())
+}
+
+testMongoConnection <- function(conf,db) {
+    if (missing(db))
+     db <- 1
+    con <- tryCatch(openMongo(conf,db),error=function(e) {
+        message("Caught error ",e)
+        stop("Cannot open database!")
+    },finally="")
+    mongoDisconnect(con)
+}
+
+.checkSanityCollection <- function(creds) {
+    con <- mongo(url=.mongoURI(creds))
     collections <- con$run(toJSON(list(listCollections=1),auto_unbox=TRUE))
     con$disconnect()
     return(any(sapply(collections$cursor$firstBatch,function(x) {
@@ -31,30 +61,88 @@ mongoConnect <- function(conf,db) {
 }
 
 
-mongoDisconnect <- function(con) {
-    invisible(con$disconnect())
-}
-
-#~ testDbConnection <- function(conf,db) {
-#~     if (missing(db))
-#~      db <- 1
-#~     con <- tryCatch(openDatabase(conf,db),error=function(e) {
-#~         message("Caught error ",e)
-#~         stop("Cannot open database!")
-#~     },finally="")
-#~     mongoDisconnect(con)
-#~ }
-
-.initCollections <- function(uri) {
+.initCollections <- function(creds) {
+    uri <- .mongoURI(creds)
     schemas <- .localCollectionDef()
     con <- mongo(url=uri)
     for (n in names(schemas))
         con$run(schemas[[n]])
+    
+    ## We also need to populate certain static collections - options etc.
+    #message("Populating statics...")
+    #.populateStatics(uri)
+    
+    # And initiate an admin user
+    if (grepl("edimoclin",uri)) {
+        message("Initiating admin user...")
+        .initAdminUser(uri)
+    }
+}
+
+.initAdminUser <- function(uri) {
+    udata <- CONFIG$tmp_admin
+    
+    con <- mongo(url=uri,collection="users")
+    on.exit(con$disconnect())
+    
+    currentTime <- Sys.time()
+    # Below - serve as example on how to insert dates
+    # If not use unbox, toJSON converts to array even with auto_unbox
+    # Also mongo_options(date_as_char=TRUE) on bootstrap
+    tmpAdminUser <- list(
+        username=udata$user,
+        password=list(
+            bcrypt=bcrypt::hashpw(udata$password)
+        ),
+        metadata=list(
+            date_created=unbox(currentTime),
+            date_updated=NULL,
+            last_login=NULL,
+            last_login_attempt=NULL,
+            login_attempts=0,
+            role="administrator",
+            account_locked=FALSE
+        ),
+        emails = list(
+            list(
+                address=udata$email,
+                verified=TRUE,
+                main=TRUE,
+                verification_token="a13Cvn6aPFGgyTtv"
+            )
+        ),
+        profile=list(
+            name=udata$name,
+            surname=udata$surname,
+            dob=unbox(as.POSIXct("1990-01-15T00:00:00Z",tz="EET")),
+            phone=list(
+                fix="+1234567890",
+                mobile="+1234567891"
+            ),
+            address=list(
+                institution="Admin Institution",
+                street="Admin str 1",
+                city="Admina",
+                state=NULL,
+                zip="99999",
+                country="Greece"
+            )
+        )
+    )
+    
+    json <- .toMongoJSON(tmpAdminUser)
+    
+    con$insert(json)
+}
+
+.toMongoJSON <- function(dat,...) {
+    return(toJSON(dat,auto_unbox=TRUE,null="null",na="null",POSIXt="mongo",...))
 }
 
 .localCollectionDef <- function() {
     return(list(
         users=.defineUsersCollection()
+        logs=.defineLogsCollection()
     ))
 }
 
@@ -80,9 +168,9 @@ mongoDisconnect <- function(con) {
               "required": ["date_created","date_updated","last_login"],
               "properties": {
                 "date_created": { "bsonType": "date" },
-                "date_updated": { "bsonType": "date" },
-                "last_login": { "bsonType": "date" },
-                "last_login_attempt": { "bsonType": "date" },
+                "date_updated": { "bsonType": ["date","null"] },
+                "last_login": { "bsonType": ["date","null"] },
+                "last_login_attempt": { "bsonType": ["date","null"] },
                 "login_attempts": { "bsonType": "int" },
                 "role": { "bsonType": "string" },
                 "account_locked": { "bsonType": "bool" }
@@ -105,7 +193,7 @@ mongoDisconnect <- function(con) {
               "properties": {
                 "name": { "bsonType": "string" },
                 "surname": { "bsonType": "string" },
-                "dob": { "bsonType": "date" },
+                "dob": { "bsonType": ["date","null"] },
                 "phone": {
                   "bsonType": "object",
                   "properties": {
@@ -138,6 +226,46 @@ mongoDisconnect <- function(con) {
     )
 }
 
+.defineLogsCollection <- function() {
+    return(
+    '{
+        "create": "logs",
+        "validator": {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["timestamp","level"],
+                "properties": {
+                    "timestamp": { "bsonType": "date" },
+                    "level": {
+                        "bsonType": "string",
+                        "maxLength": 16
+                    },
+                    "caller": {
+                        "bsonType": ["string", "null"],
+                        "maxLength": 128
+                    },
+                    "message": {
+                        "bsonType": ["string", "null"],
+                    },
+                    "sys_uname": {
+                        "bsonType": ["string", "null"],
+                        "maxLength": 64
+                    },
+                    "user_name": {
+                        "bsonType": ["string", "null"],
+                        "maxLength": 128
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "collation": {
+            "locale": "el",
+            "strength": 2
+        }
+    }'
+    )
+}
 .mongoURI <- function(creds) {
     url <- "mongodb://"
     if (creds$username!="" && creds$password=="")
