@@ -31,6 +31,7 @@ our $help;
 # Validate main arguments
 &check_inputs;
 
+# https://github.com/dpryan79/ChromosomeMappings/blob/master/GRCh37_NCBI2UCSC.txt
 my %map;
 open(MAP,$mapfile) or die "\nCan't open $mapfile\n";
 print "Reading map file\n";
@@ -41,6 +42,9 @@ while (my $line = <MAP>) {
 }
 close(MAP);
 
+my $notfound = 0;
+my $excluded = 0;
+
 open(OUT,">$dout");
 if ($dbsnp =~ m/\.gz$/) {
     my $z = new IO::Uncompress::Gunzip $dbsnp 
@@ -48,7 +52,7 @@ if ($dbsnp =~ m/\.gz$/) {
     while (my $line = <$z>) {
         $line =~ s/\r|\n$//g;
         
-        print " Processed $. lines\n" if ($.%1000000 == 0 && !$silent);
+        print "Processed $. lines\n" if ($.%1000000 == 0 && !$silent);
         
         if ($line =~ m/^#/i) {
             print OUT $line,"\n" ;
@@ -56,7 +60,15 @@ if ($dbsnp =~ m/\.gz$/) {
         else {
             my @dbline = split("\t",$line);
             $dbline[0] = $map{$dbline[0]};
-            next if ($dbline[0] =~ m/chrUn|random|fix|alt|NW/ && $canonical);
+            if (!$dbline[0]) {
+                $notfound++;
+                next;
+            }
+            if ($dbline[0] =~ m/chrUn|random|fix|alt|NW|GL|hap|cox/ 
+                && !$canonical) {
+                $excluded++;
+                next;
+            }
             $dbline[0] =~ s/chrM/chrMT/g if $dbline[0] =~ m/chrM/;
             $dbline[0] =~ s/chr//g if ($style eq "ensembl");
             print OUT join("\t",@dbline),"\n";
@@ -68,7 +80,7 @@ else {
     while (my $line = <DB>) {
         $line =~ s/\r|\n$//g;
         
-        print " Processed $. lines\n" if ($.%1000000 == 0 && !$silent);
+        print "Processed $. lines\n" if ($.%1000000 == 0 && !$silent);
         
         if ($line =~ m/^#/i) {
             print OUT $line,"\n" ;
@@ -76,7 +88,15 @@ else {
         else {
             my @dbline = split("\t",$line);
             $dbline[0] = $map{$dbline[0]};
-            next if ($dbline[0] =~ m/chrUn|random|fix|alt|NW/ && $canonical);
+            if (!$dbline[0]) {
+                $notfound++;
+                next;
+            }
+            if ($dbline[0] =~ m/chrUn|random|fix|alt|NW|GL|hap|cox/ 
+                && !$canonical) {
+                $excluded++;
+                next;
+            }
             $dbline[0] =~ s/chrM/chrMT/g if $dbline[0] =~ m/chrM/;
             $dbline[0] =~ s/chr//g if ($style eq "ensembl");
             print OUT join("\t",@dbline),"\n";
@@ -84,6 +104,9 @@ else {
     }
 }
 close(OUT);
+
+print "$notfound lines excluded because of no mapping\n" if ($notfound > 0);
+print "$excluded lines excluded because of canonical\n" if ($excluded > 0);
 
 sub check_inputs {
     my $stop;

@@ -18,11 +18,12 @@ plan(callr)
 
 # Load local libraries
 #source("lib/analyses.R")
+source("collections.R")
 #source("lib/apis.R")
 #source("lib/auth.R")
 #source("lib/const.R")
 source("mdb.R")
-#source("lib/populate.R")
+source("populate.R")
 #source("lib/queue.R")
 #source("lib/samples.R")
 #source("lib/users.R")
@@ -32,13 +33,28 @@ source("utils.R")
 mongo_options(date_as_char=TRUE)
 
 # Globals
-CONFIG <- "/media/sevenofnine/raid/tmp/edimo/config.json"
+CONFIG <- "../config.json"
 CONFIG <- fromJSON(CONFIG)
 
 # Get once database connection details so as not to read JSON every time
 DB_CREDS <- CONFIG$databases$edimoclin # edimoclin should to some evn file
 # Bootstrap main database and test connection (will stop if problems)
 testMongoConnection(DB_CREDS,"edimoclin")
+
+# Workspace and library paths
+PATHS <- CONFIG$paths
+WORKSPACE <- PATHS$workspace
+if (!dir.exists(WORKSPACE))
+    dir.create(WORKSPACE,recursive=TRUE,showWarnings=FALSE)
+#if (!dir.exists(file.path(WORKSPACE,"runs")))
+#    dir.create(file.path(WORKSPACE,"runs"),recursive=TRUE,showWarnings=FALSE)
+
+# API key
+THE_SECRET <- CONFIG$auth$secret
+
+# Write the current pid so as to be able to easily terminate
+pidfile <- file.path(WORKSPACE,".fgf.pid")
+writeLines(as.character(Sys.getpid()),pidfile)
 
 # Logger in database - index = 1 
 logger_db <- layout_json(c("time","level","fn","user","msg"))
@@ -71,6 +87,7 @@ log_threshold(DEBUG,index=2)
 logdir=file.path(WORKSPACE,"logs")
 if (!dir.exists(logdir))
     dir.create(logdir,recursive=TRUE,showWarnings=FALSE)
-logfile <- file.path(logdir,"fgf_lims.log")
+logfile <- file.path(logdir,"edimo_app.log")
 log_appender(appender_file(file=logfile,max_lines=1e+5,max_files=1000L),index=2)
 
+# We need one collection for populating selectboxes etc.

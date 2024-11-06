@@ -28,6 +28,8 @@ openMongo <- function(conf,db,collection="test") {
 mongoConnect <- function(conf,collection) {
     if (!requireNamespace("mongolite"))
         stop("R package mongolite is required!")
+    if (missing(collection))
+        stop("A collection must be specified for this function!")
     
     .validateConf(conf)
     if (is.character(conf))
@@ -43,7 +45,7 @@ mongoDisconnect <- function(con) {
 
 testMongoConnection <- function(conf,db) {
     if (missing(db))
-     db <- 1
+        db <- 1
     con <- tryCatch(openMongo(conf,db),error=function(e) {
         message("Caught error ",e)
         stop("Cannot open database!")
@@ -55,22 +57,25 @@ testMongoConnection <- function(conf,db) {
     con <- mongo(url=.mongoURI(creds))
     collections <- con$run(toJSON(list(listCollections=1),auto_unbox=TRUE))
     con$disconnect()
-    return(any(sapply(collections$cursor$firstBatch,function(x) {
-        x$name==creds$sanity
-    })))
+    #return(any(sapply(collections$cursor$firstBatch,function(x) {
+    #    x$name==creds$sanity
+    #})))
+    return(any(collections$cursor$firstBatch$name==creds$sanity))
 }
 
 
 .initCollections <- function(creds) {
     uri <- .mongoURI(creds)
-    schemas <- .localCollectionDef()
     con <- mongo(url=uri)
+    on.exit(con$disconnect())
+    
+    schemas <- .localCollectionDef()
     for (n in names(schemas))
         con$run(schemas[[n]])
     
-    ## We also need to populate certain static collections - options etc.
-    #message("Populating statics...")
-    #.populateStatics(uri)
+    # We also need to populate certain static collections - options etc.
+    message("Populating statics...")
+    .populateStatics(uri)
     
     # And initiate an admin user
     if (grepl("edimoclin",uri)) {
@@ -139,133 +144,43 @@ testMongoConnection <- function(conf,db) {
     return(toJSON(dat,auto_unbox=TRUE,null="null",na="null",POSIXt="mongo",...))
 }
 
+.populateStatics <- function(uri) {
+    # Connect to collection
+    con <- mongo(url=uri,collection="statics")
+    on.exit(con$disconnect())
+    
+    # Get the static data
+    countries <- ..getCountries()
+    sex <- ..getSex()
+    analysis_status <- ..getAnalysisStatus()
+    organism <- ..getOrganisms()
+    genome_version <- ..getGenomeVersions()
+    sequencing_platform <- ..getSequencingPlatforms()
+    sequencing_protocol <- ..getSequencingProtocols()
+    
+    # Construct the data to be batch inserted
+    statics <- list(
+        countries=countries,
+        sex=sex,
+        analysis_status=analysis_status,
+        organism=organism,
+        genome_version=genome_version,
+        sequencing_platform=sequencing_platform,
+        sequencing_protocol=sequencing_protocol
+    )
+    statics <- .toMongoJSON(statics,pretty=T)
+    
+    con$insert(statics)
+}
+
 .localCollectionDef <- function() {
     return(list(
-        users=.defineUsersCollection()
-        logs=.defineLogsCollection()
+        users=.defineUsersCollection(),
+        logs=.defineLogsCollection(),
+        statics=.defineStaticsCollection()
     ))
 }
 
-.defineUsersCollection <- function() {
-    return(
-    '{
-      "create": "users",
-      "validator": {
-        "$jsonSchema": {
-          "bsonType": "object",
-          "required": ["username","password","metadata"],
-          "properties": {
-            "username": { "bsonType": "string" },
-            "password": {
-              "bsonType": "object",
-              "required": ["bcrypt"],
-              "properties": {
-                "bcrypt": { "bsonType": "string" }
-              }
-            },
-            "metadata": {
-              "bsonType": "object",
-              "required": ["date_created","date_updated","last_login"],
-              "properties": {
-                "date_created": { "bsonType": "date" },
-                "date_updated": { "bsonType": ["date","null"] },
-                "last_login": { "bsonType": ["date","null"] },
-                "last_login_attempt": { "bsonType": ["date","null"] },
-                "login_attempts": { "bsonType": "int" },
-                "role": { "bsonType": "string" },
-                "account_locked": { "bsonType": "bool" }
-              }
-            },
-            "emails": {
-              "bsonType": "array",
-              "items": {
-                "bsonType": "object",
-                "properties": {
-                  "address": { "bsonType": "string" },
-                  "verified": { "bsonType": "bool" },
-                  "main": { "bsonType": "bool" },
-                  "verification_token": { "bsonType": "string" }
-                }
-              }
-            },
-            "profile": {
-              "bsonType": "object",
-              "properties": {
-                "name": { "bsonType": "string" },
-                "surname": { "bsonType": "string" },
-                "dob": { "bsonType": ["date","null"] },
-                "phone": {
-                  "bsonType": "object",
-                  "properties": {
-                    "fix": { "bsonType": ["string","null"] },
-                    "mobile": { "bsonType": "string" }
-                  }
-                },
-                "address": {
-                  "bsonType": "object",
-                  "properties": {
-                    "institution": { "bsonType": ["string","null"] },
-                    "street": { "bsonType": ["string","null"] },
-                    "city": { "bsonType": ["string","null"] },
-                    "state": { "bsonType": ["string","null"] },
-                    "zip": { "bsonType": ["string","null"] },
-                    "country": { "bsonType": "string"}
-                  }
-                }
-              }
-            }
-          },
-          "additionalProperties": true
-        }
-      },
-      "collation": {
-        "locale": "el",
-        "strength": 2
-      }
-    }'
-    )
-}
-
-.defineLogsCollection <- function() {
-    return(
-    '{
-        "create": "logs",
-        "validator": {
-            "$jsonSchema": {
-                "bsonType": "object",
-                "required": ["timestamp","level"],
-                "properties": {
-                    "timestamp": { "bsonType": "date" },
-                    "level": {
-                        "bsonType": "string",
-                        "maxLength": 16
-                    },
-                    "caller": {
-                        "bsonType": ["string", "null"],
-                        "maxLength": 128
-                    },
-                    "message": {
-                        "bsonType": ["string", "null"],
-                    },
-                    "sys_uname": {
-                        "bsonType": ["string", "null"],
-                        "maxLength": 64
-                    },
-                    "user_name": {
-                        "bsonType": ["string", "null"],
-                        "maxLength": 128
-                    }
-                },
-                "additionalProperties": true
-            }
-        },
-        "collation": {
-            "locale": "el",
-            "strength": 2
-        }
-    }'
-    )
-}
 .mongoURI <- function(creds) {
     url <- "mongodb://"
     if (creds$username!="" && creds$password=="")

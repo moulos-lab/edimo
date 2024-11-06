@@ -3,4 +3,5 @@ MDB_QUERIES <- list(
     REGISTER_USER=paste0("INSERT INTO users (`username`,`complete_name`,",
         "`email`,`password`,`date_created`,`date_updated`,`last_login`,`role`)",
         " VALUES "),
+     USER_DATA=list()
 )

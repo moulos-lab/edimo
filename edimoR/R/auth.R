@@ -9,12 +9,10 @@ function(req,res,username,name,email,password,role) {
     return(userRegistrationWorkflow(req,res,username,name,email,password,role))
 }
 
-#* @param username:chr The username
-#* @param password:chr The password
 #* @serializer unboxedJSON
 #* @post /login
-function(req,res,username,password) {
-    return(userLogin(req,res,username,password))
+function(req,res) {
+    return(userLogin(req,res))
 }
 
 #* @param token:chr The JWT token received during initial authentication
