@@ -1,6 +1,8 @@
 # Load R libraries
 library(bcrypt)
 library(base64enc)
+library(emayili)
+library(glue)
 library(future)
 library(future.callr)
 library(jose)
@@ -20,13 +22,13 @@ plan(callr)
 #source("lib/analyses.R")
 source("collections.R")
 #source("lib/apis.R")
-#source("lib/auth.R")
-#source("lib/const.R")
+source("auth.R")
+source("const.R")
 source("mdb.R")
 source("populate.R")
 #source("lib/queue.R")
 #source("lib/samples.R")
-#source("lib/users.R")
+source("users.R")
 source("utils.R")
 
 # Otherwise Dates not inserted
@@ -52,12 +54,12 @@ if (!dir.exists(WORKSPACE))
 # API key
 THE_SECRET <- CONFIG$auth$secret
 
-# Write the current pid so as to be able to easily terminate
-pidfile <- file.path(WORKSPACE,".fgf.pid")
-writeLines(as.character(Sys.getpid()),pidfile)
+## Write the current pid so as to be able to easily terminate
+#pidfile <- file.path(WORKSPACE,".fgf.pid")
+#writeLines(as.character(Sys.getpid()),pidfile)
 
 # Logger in database - index = 1 
-logger_db <- layout_json(c("time","level","fn","user","msg"))
+logger_db <- suppressWarnings(layout_json(c("time","level","fn","user","msg")))
 log_layout(logger_db,index=1)
 log_appender(function(lines) {
     con <- mongoConnect(DB_CREDS,"logs")
@@ -90,4 +92,10 @@ if (!dir.exists(logdir))
 logfile <- file.path(logdir,"edimo_app.log")
 log_appender(appender_file(file=logfile,max_lines=1e+5,max_files=1000L),index=2)
 
-# We need one collection for populating selectboxes etc.
+# We need one or several collections for populating selectboxes etc.
+
+# Init APIs - the last step as it remains open
+#pr_apis <- plumb("apis.R")
+pr_auth <- plumb("auth.R")
+pr() %>% pr_mount("/auth",pr_auth) %>% #pr_mount("/api",pr_apis) %>% 
+    pr_run(host="0.0.0.0",port=8383)

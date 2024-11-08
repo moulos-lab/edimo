@@ -120,7 +120,10 @@
                       ]
                     },
                     "mobile": {
-                      "bsonType": "string"
+                      "bsonType": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 },

@@ -1,12 +1,7 @@
-#* @param username:chr The username
-#* @param name:chr The complete name
-#* @param email:chr The user email
-#* @param password:chr The password
-#* @param role:chr The user role
 #* @serializer unboxedJSON
 #* @post /register
-function(req,res,username,name,email,password,role) {
-    return(userRegistrationWorkflow(req,res,username,name,email,password,role))
+function(req,res) {
+    return(userRegistrationWorkflow(req,res))
 }
 
 #* @serializer unboxedJSON
@@ -26,13 +21,14 @@ function(req,res,token) {
 #* @param new_password:chr The new password
 #* @serializer unboxedJSON
 #* @post /reset_password
-function(req,res,username,new_password) {
-    return(userResetPassword(req,res,username,new_password))
+function(req,res) {
+    return(userResetPassword(req,res))
 }
 
 #* @param token:chr The verification token sent in the email
-#* @serializer unboxedJSON
+#* @serializer html
 #* @get /verify_email
 function(req,res,token) {
     return(verifyUserEmail(req,res,token))
 }
+

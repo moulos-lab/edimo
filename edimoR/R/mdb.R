@@ -140,10 +140,6 @@ testMongoConnection <- function(conf,db) {
     con$insert(json)
 }
 
-.toMongoJSON <- function(dat,...) {
-    return(toJSON(dat,auto_unbox=TRUE,null="null",na="null",POSIXt="mongo",...))
-}
-
 .populateStatics <- function(uri) {
     # Connect to collection
     con <- mongo(url=uri,collection="statics")
