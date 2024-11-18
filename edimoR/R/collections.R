@@ -174,7 +174,8 @@
       "collation": {
         "locale": "el",
         "strength": 2
-      }
+      },
+      "validationLevel": "strict"
     }'
     )
 }
@@ -236,7 +237,8 @@
       "collation": {
         "locale": "el",
         "strength": 2
-      }
+      },
+      "validationLevel": "strict"
     }'
     )
 }
@@ -374,8 +376,812 @@
       "collation": {
         "locale": "el",
         "strength": 2
-      }
+      },
+      "validationLevel": "strict"
     }'
+    )
+}
+
+.defineSamplesCollection <- function() {
+    return(
+    '{
+      "create": "samples",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "name",
+            "files",
+            "metadata",
+            "ownership",
+            "genome_size",
+            "quality"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "objectId"
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "description": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "files": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              },
+              "minItems": 1
+            },
+            "metadata": {
+              "bsonType": "object",
+              "required": [
+                "file_type",
+                "original_names",
+                "paired",
+                "library_protocol",
+                "library_kit",
+                "sequencing_platform",
+                "aligner",
+                "variant_caller",
+                "date_created",
+                "date_updated"
+              ],
+              "properties": {
+                "file_type": {
+                  "bsonType": "string"
+                },
+                "original_names": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "string"
+                  },
+                  "minItems": 1
+                },
+                "paired": {
+                  "bsonType": [
+                     "bool",
+                     "null"
+                  ]
+                },
+                "library_protocol": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "library_kit": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "organism": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "genome_version": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sequencing_platform": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "aligner": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "variant_caller": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "date_created": {
+                  "bsonType": "date"
+                },
+                "date_updated": {
+                  "bsonType": [
+                    "date",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "ownership": {
+              "bsonType": "object",
+              "required": [
+                "inserted_by",
+                "edited_by",
+                "shared_with"
+              ],
+              "properties": {
+                "inserted_by": {
+                  "bsonType": "object",
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "edited_by": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "shared_with": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "object",
+                    "required": [
+                      "id",
+                      "fullname"
+                    ],
+                    "properties": {
+                      "id": {
+                        "bsonType": "objectId"
+                      },
+                      "fullname": {
+                        "bsonType": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "genome_size": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "seq",
+                  "len"
+                ],
+                "properties": {
+                  "seq": {
+                    "bsonType": "string"
+                  },
+                  "len": {
+                    "bsonType": "int"
+                  }
+                }
+              }
+            },
+            "quality": {
+              "bsonType": "object",
+              "properties": {
+                "reads": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "coverage": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "collation": {
+        "locale": "el",
+        "strength": 2
+      },
+      "validationLevel": "strict"
+    }'
+    )
+}
+
+.defineAnalysesCollection <- function() {
+    return(
+    '{
+      "create": "analyses",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "name",
+            "metadata",
+            "samples",
+            "ownership",
+            "stats",
+            "toolset",
+            "parameters"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "objectId"
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "description": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "bsonType": "string"
+            },
+            "metadata": {
+              "bsonType": "object",
+              "required": [
+                "date_created",
+                "date_updated",
+                "date_completed",
+                "status",
+                "organism",
+                "genome_version",
+                "job_id"
+              ],
+              "properties": {
+                "date_created": {
+                  "bsonType": "date"
+                },
+                "date_updated": {
+                  "bsonType": [
+                    "date",
+                    "null"
+                  ]
+                },
+                "date_completed": {
+                  "bsonType": [
+                    "date",
+                    "null"
+                  ]
+                },
+                "status": {
+                  "bsonType": "string"
+                },
+                "fail_reason": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "organism": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "genome_version": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "job_id": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "samples": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "properties": {
+                  "id": {
+                    "bsonType": "objectId"
+                  },
+                  "name": {
+                    "bsonType": "string"
+                  },
+                  "tracks": {
+                    "bsonType": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "ownership": {
+              "bsonType": "object",
+              "required": [
+                "inserted_by",
+                "edited_by",
+                "shared_with"
+              ],
+              "properties": {
+                "inserted_by": {
+                  "bsonType": "object",
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "edited_by": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "shared_with": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "object",
+                    "required": [
+                      "id",
+                      "fullname"
+                    ],
+                    "properties": {
+                      "id": {
+                        "bsonType": "objectId"
+                      },
+                      "fullname": {
+                        "bsonType": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "stats": {
+              "bsonType": "object",
+              "properties": {
+                "variantSpliceScoreRanges": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                   ]
+                },
+                "geneClinDbStats": {
+                  "bsonType": "object",
+                  "properties": {
+                    "hpo": {
+                      "bsonType": "int"
+                    },
+                    "ctd": {
+                      "bsonType": "int"
+                    },
+                    "omimMorbid": {
+                      "bsonType": "int"
+                    },
+                    "omim": {
+                      "bsonType": "int"
+                    },
+                    "disgenet": {
+                      "bsonType": "int"
+                    },
+                    "cgd": {
+                      "bsonType": "int"
+                    }
+                  }
+                },
+                "variantStatusStats": {
+                  "bsonType": "object",
+                  "properties": {
+                    "novel": {
+                      "bsonType": "int"
+                    },
+                    "known": {
+                      "bsonType": "int"
+                    }
+                  }
+                },
+                "variantLocationStats": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "type": {
+                        "bsonType": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "count": {
+                        "bsonType": [
+                          "int",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "variantTypeStats": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "type": {
+                        "bsonType": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "count": {
+                        "bsonType": [
+                          "int",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "variantInheritanceStats": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ]
+                  "properties": {
+                    "dominant": {
+                      "bsonType": [
+                        "int",
+                        "null"
+                      ]
+                    },
+                    "recessive": {
+                      "bsonType": [
+                        "int",
+                        "null"
+                      ]
+                    },
+                    "other": {
+                      "bsonType": [
+                        "int",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "variantClinDbStats": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "disgenet": {
+                      "bsonType": "int"
+                    },
+                    "clinvar": {
+                      "bsonType": "int"
+                    },
+                    "civic": {
+                      "bsonType": "int"
+                    },
+                    "oncokb": {
+                      "bsonType": "int"
+                    }
+                  }
+                },
+                "variantPredictionSummary": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "variantPopulationStats": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "variantZygosityStats": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "variantQualityRanges": {
+                  "bsonType": "object",
+                  "properties": {
+                    "minQual": {
+                      "bsonType": "double"
+                    },
+                    "maxQual": {
+                      "bsonType": "double"
+                    },
+                    "minDp": {
+                      "bsonType": "int"
+                    },
+                    "maxDp": {
+                      "bsonType": "int"
+                    }
+                  }
+                },
+                "variantPathogenRanges": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "variantClinvarStats": {
+                  "bsonType": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "bsonType": "object",
+                    "required": [
+                      "type",
+                      "count"
+                    ],
+                    "properties": {
+                      "type": {
+                        "bsonType": "string"
+                      },
+                      "count": {
+                        "bsonType": "int"
+                      }
+                    }
+                  }
+                },
+                "geneCgdStats": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "ageGroups": {
+                      "bsonType": "array",
+                      "items": {
+                        "bsonType": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "type": {
+                            "bsonType": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "count": {
+                            "bsonType": [
+                              "int",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "conditions": {
+                      "bsonType": "array",
+                      "items": {
+                        "bsonType": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "type": {
+                            "bsonType": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "count": {
+                            "bsonType": [
+                              "int",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "interventions": {
+                      "bsonType": "array",
+                      "items": {
+                        "bsonType": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "type": {
+                            "bsonType": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "count": {
+                            "bsonType": [
+                              "int",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "manifestation": {
+                      "bsonType": "array",
+                      "items": {
+                        "bsonType": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "type": {
+                            "bsonType": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "count": {
+                            "bsonType": [
+                              "int",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "disease": {
+                  "bsonType": "object",
+                  "properties": {
+                    "classes": {
+                      "bsonType": "array",
+                      "items": {
+                        "bsonType": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "type": {
+                            "bsonType": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "count": {
+                            "bsonType": [
+                              "int",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "diseases": {
+                      "bsonType": [
+                        "int",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "defaultFilter": {
+                  "bsonType": "object",
+                  "properties": {
+                    "dp": {
+                      "bsonType": "object"
+                    },
+                    "qual": {
+                      "bsonType": "object"
+                    }
+                  }
+                },
+                "effectImpactStats": {
+                  "bsonType": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "bsonType": "object"
+                  }
+                }
+              }
+            },
+            "toolset": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "name",
+                  "version"
+                ],
+                "properties": {
+                  "name": {
+                    "bsonType": "string"
+                  },
+                  "version": {
+                    "bsonType": "string"
+                  }
+                }
+              }
+            },
+            "parameters": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "collation": {
+        "locale": "el",
+        "strength": 2
+      },
+      "validationLevel": "moderate"
+    }
+    '
     )
 }
 
@@ -520,7 +1326,8 @@
       "collation": {
         "locale": "el",
         "strength": 2
-      }
+      },
+      "validationLevel": "moderate"
     }'
     )
 }

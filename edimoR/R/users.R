@@ -10,7 +10,7 @@ userRegistrationWorkflow <- function(req,res){
         role <- "user"
     
     # Initialize connection and make sure it is closed on function end
-    con <- mongoConnect(DB_CREDS,"users")
+    con <- mongoConnect(.DB_CREDS,"users")
     on.exit(mongoDisconnect(con))
 
     # Check if the username already exists since it's our main identifier and
@@ -68,7 +68,7 @@ userRegistrationWorkflow <- function(req,res){
                 
             # Send verification mail
             log_debug("Sending verification email to ",email,".")
-            .userVerificationMail(name,surname,email,CONFIG$host,
+            .userVerificationMail(name,surname,email,.CONFIG$host,
                 "auth/verify_email",newUser$emails[[1]]$verification_token)
             
             res$status <- 201
@@ -96,7 +96,7 @@ userLogin <- function(req,res) {
     password <- tolower(req$body$password)
     
     # Initialize connection and make sure it is closed on function end
-    con <- mongoConnect(DB_CREDS,"users")
+    con <- mongoConnect(.DB_CREDS,"users")
     on.exit(mongoDisconnect(con))
 
     # Check if the username already exists since it's our main identifier and
@@ -166,7 +166,7 @@ userLogin <- function(req,res) {
             name=result$profile$name,
             surname=result$profile$surname
         )
-        token <- jose::jwt_encode_hmac(authToken,THE_SECRET)
+        token <- jose::jwt_encode_hmac(authToken,.THE_SECRET)
         
         # If the token is generated successfully, mark last login time and 
         # reset login attempts if any unsuccessful
@@ -211,7 +211,7 @@ userLogin <- function(req,res) {
 
 authenticateUser <- function(req,res,token) {
     tryCatch({
-        claims <- jose::jwt_decode_hmac(token,THE_SECRET)
+        claims <- jose::jwt_decode_hmac(token,.THE_SECRET)
         username <- claims$sub
 
         log_debug("Token based authentication for user ",username,".")
@@ -234,19 +234,19 @@ authenticateUser <- function(req,res,token) {
 
 verifyUserEmail <- function(req,res,token) {
     # Initialize connection and make sure it is closed on function end
-    con <- mongoConnect(DB_CREDS,"users")
+    con <- mongoConnect(.DB_CREDS,"users")
     on.exit(mongoDisconnect(con))
     
     # Check if the token is invalid or expired
     claims <- NULL
     claims <- tryCatch({
-        jose::jwt_decode_hmac(token,THE_SECRET)
+        jose::jwt_decode_hmac(token,.THE_SECRET)
     },error=function(e) {
         log_error("Invalid email verification token: ",e$message)
         
         res$setHeader("Content-Type","text/html")
         res$status <- 500
-        return(CONST$INVALID_TOKEN)
+        return(.CONST$INVALID_TOKEN)
     })
     
     if (!is.null(claims)) {
@@ -256,7 +256,7 @@ verifyUserEmail <- function(req,res,token) {
             
             res$setHeader("Content-Type","text/html")
             res$status <- 401
-            return(CONST$EXPIRED_TOKEN)
+            return(.CONST$EXPIRED_TOKEN)
         }
         
         # If token is valid, continue...
@@ -282,7 +282,7 @@ verifyUserEmail <- function(req,res,token) {
             
             res$setHeader("Content-Type","text/html")
             res$status <- 401
-            return(CONST$INVALID_USER)
+            return(.CONST$INVALID_USER)
         }
         
         # email already verified
@@ -294,7 +294,7 @@ verifyUserEmail <- function(req,res,token) {
                 
                 res$setHeader("Content-Type","text/html")
                 res$status <- 200
-                return(CONST$EMAIL_VERIFIED)
+                return(.CONST$EMAIL_VERIFIED)
             }
         }
         
@@ -319,7 +319,7 @@ verifyUserEmail <- function(req,res,token) {
             if (nr$modifiedCount > 0) {
                 # Document updated
                 log_debug("User ",username," email ",email," verified.")
-                return(CONST$EMAIL_VERIFIED)
+                return(.CONST$EMAIL_VERIFIED)
             } 
             else {
                 log_warn("User ",username," email ",email," failed to ",
@@ -327,7 +327,7 @@ verifyUserEmail <- function(req,res,token) {
                 
                 res$setHeader("Content-Type","text/html")
                 res$status <- 400
-                return(CONST$EMAIL_NOT_VERIFIED)
+                return(.CONST$EMAIL_NOT_VERIFIED)
             }
         },error=function(e) {
             log_warn("User ",username," email ",email," failed to ",
@@ -335,13 +335,13 @@ verifyUserEmail <- function(req,res,token) {
             
             res$setHeader("Content-Type","text/html")
             res$status <- 400
-            return(CONST$EMAIL_NOT_VERIFIED)
+            return(.CONST$EMAIL_NOT_VERIFIED)
         })
     } 
     else {
         res$setHeader("Content-Type","text/html")
         res$status <- 400
-        return(CONST$INTERNAL_ERROR)
+        return(.CONST$INTERNAL_ERROR)
     }
 }
 
@@ -352,7 +352,7 @@ userResetPassword <- function(req,res) {
     new_password <- tolower(req$body$new_password)
     
     # Initialize connection and make sure it is closed on function end
-    con <- mongoConnect(DB_CREDS,"users")
+    con <- mongoConnect(.DB_CREDS,"users")
     on.exit(mongoDisconnect(con))
 
     # Check if the username already exists since it's our main identifier and

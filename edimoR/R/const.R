@@ -1,4 +1,4 @@
-CONST <- list(
+.CONST <- list(
     INVALID_TOKEN="
         <html>
         <head>

@@ -85,7 +85,7 @@ testMongoConnection <- function(conf,db) {
 }
 
 .initAdminUser <- function(uri) {
-    udata <- CONFIG$tmp_admin
+    udata <- .CONFIG$tmp_admin
     
     con <- mongo(url=uri,collection="users")
     on.exit(con$disconnect())
@@ -173,7 +173,10 @@ testMongoConnection <- function(conf,db) {
     return(list(
         users=.defineUsersCollection(),
         logs=.defineLogsCollection(),
-        statics=.defineStaticsCollection()
+        statics=.defineStaticsCollection(),
+        institutions=.defineInstitutionsCollection(),
+        samples=.defineSamplesCollection(),
+        analyses=.defineAnalysesCollection()
     ))
 }
 
