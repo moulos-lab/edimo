@@ -4,9 +4,12 @@
 
 # Environment
 .CONFIG <- new.env()
-
-# Variables that will be populated from .CONFIG upon init
-.DB_CREDS <- NULL
-.PATHS <- NULL
-.WORKSPACE <- NULL
-.THE_SECRET <- NULL
+.CONFIG$databases <- 
+.CONFIG$paths <- 
+.CONFIG$auth <-
+.CONFIG$tmp_admin <- 
+.CONFIG$rest_api <- 
+.CONFIG$host <- 
+.CONFIG$mail <- 
+.CONFIG$software <- 
+.CONFIG$static_files <- NULL

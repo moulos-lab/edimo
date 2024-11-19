@@ -14,7 +14,7 @@ library(mongolite)
 library(plumber)
 library(promises)
 library(R.utils)
-#library(wand)
+library(wand)
 
 plan(callr)
 
@@ -35,48 +35,24 @@ source("zzz.R")
 # Otherwise Dates not inserted
 mongo_options(date_as_char=TRUE)
 
-# In a package format, zzz.R should initiate the .CONFIG environment and others
-# like .DB_CREDS, .WORKSPACE etc. Then, right after package load, a function 
-# should read config.json and fill .CONFIG and the others
-
-.initConfig <- function(conf) {
-    if (!file.exists(conf))
-        stop("Main configuration file not found!")
-    
-    # Read main configurtion environment
-    .CONFIG <- as.environment(fromJSON(.CONFIG))
-    
-    # Get once database connection details so as not to read JSON every time
-    .DB_CREDS <- .CONFIG$databases$edimoclin
-    
-    # App system paths
-    .PATHS <- .CONFIG$paths
-    .WORKSPACE <- PATHS$workspace
-    
-    # API key
-    .THE_SECRET <- .CONFIG$auth$secret
-    
-    # Create default app paths
-    if (!dir.exists(.WORKSPACE))
-        dir.create(.WORKSPACE,recursive=TRUE,showWarnings=FALSE)
-    # Create other default dirs here
+# In a package format, zzz.R should initiate the .CONFIG environment
+initApp <- function(conf) {
+    .initConfig("../config.json")
+    .initAppPaths()
+    ## Write the current pid so as to be able to easily terminate
+    #pidfile <- file.path(.getAppWorkspace(),".fgf.pid")
+    #writeLines(as.character(Sys.getpid()),pidfile)
 }
 
-# Init config - final location in the package will be different
-.initConfig("../config.json")
-
+initApp("../config.json")
 # Bootstrap main database and test connection (will stop if problems)
-testMongoConnection(.DB_CREDS,"edimoclin")
-
-## Write the current pid so as to be able to easily terminate
-#pidfile <- file.path(.WORKSPACE,".fgf.pid")
-#writeLines(as.character(Sys.getpid()),pidfile)
+testMongoConnection("edimoclin")
 
 # Logger in database - index = 1 
 logger_db <- suppressWarnings(layout_json(c("time","level","fn","user","msg")))
 log_layout(logger_db,index=1)
 log_appender(function(lines) {
-    con <- mongoConnect(.DB_CREDS,"logs")
+    con <- mongoConnect("logs")
     logmsg <- fromJSON(lines)
     S <- strsplit(logmsg$msg,"#USER:")
     msg <- trimws(S[[1]][1])
@@ -100,9 +76,7 @@ logger_debug <- layout_glue_generator(
 log_layout(logger_debug,index=2)    
 log_threshold(DEBUG,index=2)
 # Init the log with logger simple rotation
-logdir=file.path(.WORKSPACE,"logs")
-if (!dir.exists(logdir))
-    dir.create(logdir,recursive=TRUE,showWarnings=FALSE)
+logdir=file.path(.getAppWorkspace(),"logs") # Exists from init
 logfile <- file.path(logdir,"edimo_app.log")
 log_appender(appender_file(file=logfile,max_lines=1e+5,max_files=1000L),index=2)
 

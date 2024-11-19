@@ -10,7 +10,7 @@ userRegistrationWorkflow <- function(req,res){
         role <- "user"
     
     # Initialize connection and make sure it is closed on function end
-    con <- mongoConnect(.DB_CREDS,"users")
+    con <- mongoConnect("users")
     on.exit(mongoDisconnect(con))
 
     # Check if the username already exists since it's our main identifier and
@@ -96,7 +96,7 @@ userLogin <- function(req,res) {
     password <- tolower(req$body$password)
     
     # Initialize connection and make sure it is closed on function end
-    con <- mongoConnect(.DB_CREDS,"users")
+    con <- mongoConnect("users")
     on.exit(mongoDisconnect(con))
 
     # Check if the username already exists since it's our main identifier and
@@ -166,7 +166,7 @@ userLogin <- function(req,res) {
             name=result$profile$name,
             surname=result$profile$surname
         )
-        token <- jose::jwt_encode_hmac(authToken,.THE_SECRET)
+        token <- jose::jwt_encode_hmac(authToken,.getApiSecret())
         
         # If the token is generated successfully, mark last login time and 
         # reset login attempts if any unsuccessful
@@ -211,7 +211,7 @@ userLogin <- function(req,res) {
 
 authenticateUser <- function(req,res,token) {
     tryCatch({
-        claims <- jose::jwt_decode_hmac(token,.THE_SECRET)
+        claims <- jose::jwt_decode_hmac(token,.getApiSecret())
         username <- claims$sub
 
         log_debug("Token based authentication for user ",username,".")
@@ -234,13 +234,13 @@ authenticateUser <- function(req,res,token) {
 
 verifyUserEmail <- function(req,res,token) {
     # Initialize connection and make sure it is closed on function end
-    con <- mongoConnect(.DB_CREDS,"users")
+    con <- mongoConnect("users")
     on.exit(mongoDisconnect(con))
     
     # Check if the token is invalid or expired
     claims <- NULL
     claims <- tryCatch({
-        jose::jwt_decode_hmac(token,.THE_SECRET)
+        jose::jwt_decode_hmac(token,.getApiSecret())
     },error=function(e) {
         log_error("Invalid email verification token: ",e$message)
         
@@ -352,7 +352,7 @@ userResetPassword <- function(req,res) {
     new_password <- tolower(req$body$new_password)
     
     # Initialize connection and make sure it is closed on function end
-    con <- mongoConnect(.DB_CREDS,"users")
+    con <- mongoConnect("users")
     on.exit(mongoDisconnect(con))
 
     # Check if the username already exists since it's our main identifier and

@@ -1,8 +1,10 @@
-openMongo <- function(conf,db,collection="test") {
+openMongo <- function(collection="test",db=NULL,conf=NULL) {
     if (!requireNamespace("mongolite"))
         stop("R package mongolite is required!")
-    if (missing(db))
+    if (missing(db) || is.null(db))
         db <- 1
+    if (missing(conf) || is.null(conf))
+        conf <- .getDbCreds()
     
     .validateConf(conf)
     if (is.character(conf))
@@ -25,11 +27,13 @@ openMongo <- function(conf,db,collection="test") {
 }
 
 # A lighter version - assuming ready database and credentials
-mongoConnect <- function(conf,collection) {
+mongoConnect <- function(collection,conf=NULL) {
     if (!requireNamespace("mongolite"))
         stop("R package mongolite is required!")
     if (missing(collection))
         stop("A collection must be specified for this function!")
+    if (missing(conf) || is.null(conf))
+        conf <- .getDbCreds()
     
     .validateConf(conf)
     if (is.character(conf))
@@ -43,14 +47,20 @@ mongoDisconnect <- function(con) {
     invisible(con$disconnect())
 }
 
-testMongoConnection <- function(conf,db) {
-    if (missing(db))
+testMongoConnection <- function(db=NULL,conf=NULL) {
+    if (missing(db) || is.null(db))
         db <- 1
-    con <- tryCatch(openMongo(conf,db),error=function(e) {
+    if (missing(conf) || is.null(conf))
+        conf <- .getDbCreds()
+    con <- tryCatch({
+        openMongo("test",db,conf)
+    },error=function(e) {
         message("Caught error ",e)
+        return(FALSE)
         stop("Cannot open database!")
     },finally="")
-    mongoDisconnect(con)
+    if (is(con,"mongo"))
+        mongoDisconnect(con)
 }
 
 .checkSanityCollection <- function(creds) {
@@ -62,7 +72,6 @@ testMongoConnection <- function(conf,db) {
     #})))
     return(any(collections$cursor$firstBatch$name==creds$sanity))
 }
-
 
 .initCollections <- function(creds) {
     uri <- .mongoURI(creds)

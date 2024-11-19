@@ -3,6 +3,60 @@ generateConfigTemplate <- function() {
     # Dummy names
 }
 
+.getDbCreds <- function() {
+    if (is.null(.CONFIG$databases$edimoclin)) {
+        log_error("FATAL! MongoDB connection details are not defined!")
+        stop("FATAL! MongoDB connection details are not defined!")
+    }
+    return(.CONFIG$databases$edimoclin)
+}
+
+.getAppWorkspace <- function() {
+    if (is.null(.CONFIG$paths$workspace)) {
+        log_error("FATAL! Application main workspace is not defined!")
+        stop("FATAL! Application main workspace is not defined!")
+    }
+    return(.CONFIG$paths$workspace)
+}
+
+.getApiSecret <- function() {
+    if (is.null(.CONFIG$auth$secret)) {
+        log_error("FATAL! Main authentication secret token is not defined!")
+        stop("FATAL! Main authentication secret token is not defined!")
+    }
+    return(.CONFIG$auth$secret)
+}
+
+.initConfig <- function(conf) {
+    if (!file.exists(conf))
+        stop("Main configuration file not found!")
+    
+    # Read main configurtion environment
+    conf <- fromJSON(conf)
+    
+    .CONFIG$databases <- conf$databases
+    .CONFIG$paths <- conf$paths
+    .CONFIG$auth <- conf$auth
+    .CONFIG$tmp_admin <- conf$tmp_admin
+    .CONFIG$rest_api <- conf$rest_api
+    .CONFIG$host <- conf$host
+    .CONFIG$mail <- conf$mail
+    .CONFIG$software <- conf$software
+    .CONFIG$static_files <- conf$static_files
+}
+
+.initAppPaths <- function() {
+    .PATHS <- .CONFIG$paths
+    .WORKSPACE <- .PATHS$workspace
+    
+    if (!dir.exists(.WORKSPACE)) {
+        dir.create(.WORKSPACE,recursive=TRUE,showWarnings=FALSE)
+        dir.create(file.path(.WORKSPACE,"users"),recursive=TRUE,
+            showWarnings=FALSE)
+        dir.create(logdir,recursive=TRUE,showWarnings=FALSE)
+    }
+}
+
 # Utility function to bypass glue and its problem with curly braces in logger
 .skipFormatter <- function(...) {
     msg <- unlist(list(...))
@@ -10,7 +64,7 @@ generateConfigTemplate <- function() {
 }
 
 .fetchInstitutionDetails <- function(iid) {
-    con <- mongoConnect(DB_CREDS,"institutions")
+    con <- mongoConnect("institutions")
     on.exit(mongoDisconnect(con))
     
     query <- .toMongoJSON(list(`_id`=list(`$oid`=iid)))
@@ -195,4 +249,35 @@ generateConfigTemplate <- function() {
             stop("\"",argName,"\""," parameter must be one of ",
                 paste(paste("\"",argList,sep=""),collapse="\", "),"\"!")
     }
+}
+
+.checkId <- function(i,what) {
+    query <- .toMongoJSON(list(`_id`=list(`$oid`=i)))
+    switch(what,
+        user = {
+            con <- mongoConnect("users")
+            on.exit(mongoDisconnect(con))
+            result <- con$find(query,fields='{"_id": 1}')
+        },
+        sample = {
+            con <- mongoConnect("samples")
+            on.exit(mongoDisconnect(con))
+            result <- con$find(query,fields='{"_id": 1}')
+        }
+    )
+    return(ifelse(nrow(result)>0,TRUE,FALSE))
+}
+
+.getUserName <- function(uid) {
+    con <- mongoConnect("users")
+    on.exit(mongoDisconnect(con))
+            
+    query <- .toMongoJSON(list(`_id`=list(`$oid`=uid)))
+    fields <- .toMongoJSON(list(
+        username=1L,
+        profile=1L
+    ))
+    
+    result <- con$find(query,fields=fields)
+    return(paste0(result$profile$name," ",result$profile$surname))
 }
