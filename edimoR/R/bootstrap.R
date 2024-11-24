@@ -16,6 +16,8 @@ library(promises)
 library(R.utils)
 library(wand)
 
+library(VariantAnnotation)
+
 plan(callr)
 
 # Load local libraries
@@ -27,9 +29,10 @@ source("const.R")
 source("mdb.R")
 source("populate.R")
 #source("lib/queue.R")
-#source("lib/samples.R")
+source("samples.R")
 source("users.R")
 source("utils.R")
+source("vcf-annotate.R")
 source("zzz.R")
 
 # Otherwise Dates not inserted
@@ -83,7 +86,7 @@ log_appender(appender_file(file=logfile,max_lines=1e+5,max_files=1000L),index=2)
 # We need one or several collections for populating selectboxes etc.
 
 # Init APIs - the last step as it remains open
-#pr_apis <- plumb("apis.R")
+pr_apis <- plumb("apis.R")
 pr_auth <- plumb("auth.R")
-pr() %>% pr_mount("/auth",pr_auth) %>% #pr_mount("/api",pr_apis) %>% 
+pr() %>% pr_mount("/auth",pr_auth) %>% pr_mount("/api",pr_apis) %>% 
     pr_run(host="0.0.0.0",port=8383)

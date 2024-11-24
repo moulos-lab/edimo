@@ -162,6 +162,7 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     genome_version <- ..getGenomeVersions()
     sequencing_platform <- ..getSequencingPlatforms()
     sequencing_protocol <- ..getSequencingProtocols()
+    sequencing_kit <- ..getSequencingKits()
     
     # Construct the data to be batch inserted
     statics <- list(
@@ -171,7 +172,8 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         organism=organism,
         genome_version=genome_version,
         sequencing_platform=sequencing_platform,
-        sequencing_protocol=sequencing_protocol
+        sequencing_protocol=sequencing_protocol,
+        sequencing_kit=sequencing_kit
     )
     statics <- .toMongoJSON(statics,pretty=T)
     

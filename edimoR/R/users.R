@@ -144,7 +144,7 @@ userLogin <- function(req,res) {
         con$update(filterQuery,updateQuery)
         
         res$status <- 401
-        if (lockedAccount)
+        if (lockAccount)
             return(list(error=paste0("Authentication failed: invalid ",
                 "password, account locked! Please contact an administrator.")))
         else

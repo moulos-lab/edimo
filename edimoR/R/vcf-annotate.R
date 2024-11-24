@@ -62,6 +62,22 @@ annotateVcf <- function(vcfFile) {
     # 1. Strip incoming VCF from unecessary fields for this app
 }
 
+checkVcf <- function(vcfFile) {
+    if (!requireNamespace("VariantAnnotation"))
+        stop("Bioconductor package VariantAnnotation is required!")
+    
+    param <- ScanVcfParam(fixed=NA,info=NA,samples=NA)
+    isVcf <- tryCatch({
+        readVcf(vcfFile,param=param)
+        TRUE
+    },error=function(e) {
+        message("VCF file check failed! ",e$message)
+        return(FALSE)
+    })
+    
+    return(isVcf)
+}
+
 stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
     if (!requireNamespace("VariantAnnotation"))
         stop("Bioconductor package VariantAnnotation is required!")
@@ -196,7 +212,7 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
 .dbnsfpFieldsString <- function() {
     return(paste(.getVanillaDbnsfpFields(),collapse=","))
 }
-Εθνικής Αντιστάσεως 62, 152 35 Βριλήσσια, Ελλάδα
+
 .getVcfDbnsfpFields <- function() {
     return(paste("dbNSFP",.getVanillaDbnsfpFields(),sep="_"))
 }

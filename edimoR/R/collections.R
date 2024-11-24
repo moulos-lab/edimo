@@ -421,8 +421,7 @@
               "bsonType": "array",
               "items": {
                 "bsonType": "string"
-              },
-              "minItems": 1
+              }
             },
             "metadata": {
               "bsonType": "object",
@@ -436,7 +435,8 @@
                 "aligner",
                 "variant_caller",
                 "date_created",
-                "date_updated"
+                "date_updated",
+                "insert_token"
               ],
               "properties": {
                 "file_type": {
@@ -505,7 +505,13 @@
                     "date",
                     "null"
                   ]
-                }
+                },
+                "insert_token": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
               }
             },
             "ownership": {
@@ -1314,6 +1320,12 @@
               }
             },
             "sequencing_protocol": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "sequencing_kit": {
               "bsonType": "array",
               "items": {
                 "bsonType": "string"

@@ -44,6 +44,10 @@
     return(c("Panel","WES"))
 }
 
+..getSequencingKits <- function() {
+    return(c("Kit 1","Kit 2"))
+}
+
 # Most likely temporary - an admin in the future should be able to dynamically
 # add/remove institutions
 ..getInstitutions <- function() {
