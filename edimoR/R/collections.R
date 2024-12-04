@@ -633,7 +633,10 @@
           "required": [
             "_id",
             "name",
+            "description",
+            "notes",
             "metadata",
+            "progress",
             "samples",
             "ownership",
             "stats",
@@ -654,7 +657,10 @@
               ]
             },
             "notes": {
-              "bsonType": "string"
+              "bsonType": [
+                "string",
+                "null"
+              ]
             },
             "metadata": {
               "bsonType": "object",
@@ -665,6 +671,8 @@
                 "status",
                 "organism",
                 "genome_version",
+                "secondary_protocol",
+                "tertiary_protocol",
                 "job_id"
               ],
               "properties": {
@@ -704,7 +712,45 @@
                     "null"
                   ]
                 },
+                "secondary_protocol": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tertiary_protocol": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "job_id": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "progress": {
+              "bsonType": "object",
+              "required": [
+                "step",
+                "pct",
+                "desc"
+              ],
+              "properties": {
+                "step": {
+                  "bsonType": [
+                    "int"
+                  ]
+                },
+                "pct": {
+                  "bsonType": [
+                    "int"
+                  ]
+                },
+                "desc": {
                   "bsonType": [
                     "string",
                     "null"
@@ -841,7 +887,10 @@
                   }
                 },
                 "variantLocationStats": {
-                  "bsonType": "array",
+                  "bsonType": [
+                    "array",
+                    "null"
+                  ],
                   "items": {
                     "bsonType": [
                       "object",
@@ -864,7 +913,10 @@
                   }
                 },
                 "variantTypeStats": {
-                  "bsonType": "array",
+                  "bsonType": [
+                    "array",
+                    "null"
+                  ],
                   "items": {
                     "bsonType": [
                       "object",
@@ -1098,7 +1150,10 @@
                   "bsonType": "object",
                   "properties": {
                     "classes": {
-                      "bsonType": "array",
+                      "bsonType": [
+                        "array",
+                        "null"
+                      ],
                       "items": {
                         "bsonType": [
                           "object",
@@ -1343,3 +1398,8 @@
     }'
     )
 }
+
+# Regarding backend databases, this should be added to the build scripts
+#db.disgenet_gene.createIndex({
+#   "gene_name": 1
+#})

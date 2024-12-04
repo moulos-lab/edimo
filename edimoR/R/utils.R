@@ -11,6 +11,14 @@ generateConfigTemplate <- function() {
     return(.CONFIG$databases$edimoclin)
 }
 
+.getDbBackCreds <- function() {
+    if (is.null(.CONFIG$databases$edimoback)) {
+        log_error("FATAL! MongoDB connection details are not defined!")
+        stop("FATAL! MongoDB connection details are not defined!")
+    }
+    return(.CONFIG$databases$edimoback)
+}
+
 .getAppWorkspace <- function() {
     if (is.null(.CONFIG$paths$workspace)) {
         log_error("FATAL! Application main workspace is not defined!")
@@ -25,6 +33,14 @@ generateConfigTemplate <- function() {
         stop("FATAL! Main authentication secret token is not defined!")
     }
     return(.CONFIG$auth$secret)
+}
+
+.getOncoKbToken <- function() {
+    if (is.null(.CONFIG$auth$oncokb)) {
+        log_error("FATAL! OncoKB API token is not defined!")
+        stop("FATAL! OncoKB API token is not defined!")
+    }
+    return(.CONFIG$auth$oncokb)
 }
 
 .initConfig <- function(conf) {
@@ -280,4 +296,37 @@ generateConfigTemplate <- function() {
     
     result <- con$find(query,fields=fields)
     return(paste0(result$profile$name," ",result$profile$surname))
+}
+
+cmclapply <- function(...,rc) {
+    if (suppressWarnings(!requireNamespace("parallel")) 
+        || .Platform$OS.type!="unix")
+        m <- FALSE
+    else {
+        m <- TRUE
+        ncores <- parallel::detectCores()
+        if (ncores==1) 
+            m <- FALSE
+        else {
+            if (!missing(rc) && !is.null(rc))
+                ncores <- ceiling(rc*ncores)
+            else 
+                m <- FALSE
+        }
+    }
+    if (m)
+        return(mclapply(...,mc.cores=ncores,mc.set.seed=FALSE))
+    else
+        return(lapply(...))
+}
+
+.openSink <- function(f) {
+    fh <- file(f,open="wt")
+    sink(fh,type="output")
+    sink(fh,type="message")
+}
+
+.closeSink <- function() {
+    sink(type="message")
+    sink(type="output")
 }

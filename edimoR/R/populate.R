@@ -29,10 +29,10 @@
 
 ..getGenomeVersions <- function() {
     return(data.frame(
-        ucsc=c("hg19","hg38"),
-        ensembl=c("GRCh37","GRCh38"),
+        ucsc=c("hg19","hg38","From sample"),
+        ensembl=c("GRCh37","GRCh38","From sample"),
         description=c("Human genome version hg19 (GRCh37)",
-            "Human genome version hg38 (GRCh38)")
+            "Human genome version hg38 (GRCh38)","From sample")
     ))
 }
 

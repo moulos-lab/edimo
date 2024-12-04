@@ -27,13 +27,18 @@ openMongo <- function(collection="test",db=NULL,conf=NULL) {
 }
 
 # A lighter version - assuming ready database and credentials
-mongoConnect <- function(collection,conf=NULL) {
+mongoConnect <- function(collection,db=c("user","back"),conf=NULL) {
     if (!requireNamespace("mongolite"))
         stop("R package mongolite is required!")
     if (missing(collection))
         stop("A collection must be specified for this function!")
-    if (missing(conf) || is.null(conf))
-        conf <- .getDbCreds()
+    db <- db[1]
+    if (missing(conf) || is.null(conf)) {
+        if (db == "user")
+            conf <- .getDbCreds()
+        else if (db == "back")
+            conf <- .getDbBackCreds()
+    }
     
     .validateConf(conf)
     if (is.character(conf))
