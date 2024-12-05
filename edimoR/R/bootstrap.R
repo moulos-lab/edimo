@@ -88,8 +88,8 @@ testMongoConnection("edimoclin")
 #~ logfile <- file.path(logdir,"edimo_app.log")
 #~ log_appender(appender_file(file=logfile,max_lines=1e+5,max_files=1000L),index=2)
 
-# Init APIs - the last step as it remains open
-pr_apis <- plumb("apis.R")
-pr_auth <- plumb("auth.R")
-pr() %>% pr_mount("/auth",pr_auth) %>% pr_mount("/api",pr_apis) %>% 
-    pr_run(host="0.0.0.0",port=8383)
+#~ # Init APIs - the last step as it remains open
+#~ pr_apis <- plumb("apis.R")
+#~ pr_auth <- plumb("auth.R")
+#~ pr() %>% pr_mount("/auth",pr_auth) %>% pr_mount("/api",pr_apis) %>% 
+#~     pr_run(host="0.0.0.0",port=8383)

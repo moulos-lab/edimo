@@ -127,7 +127,7 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
                 address=udata$email,
                 verified=TRUE,
                 main=TRUE,
-                verification_token="a13Cvn6aPFGgyTtv"
+                verification_token=udata$token
             )
         ),
         profile=list(

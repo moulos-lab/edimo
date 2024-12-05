@@ -1,3 +1,10 @@
+annotateAndInsertVariants <- function(analysisId) {
+    # Get VCF file and genome from analysisId
+    # Open the VCF file in chunks of X variants
+    # Call vcfToList
+    # JSON the list, add the analysisId and insert
+}
+
 vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     if (!requireNamespace("VariantAnnotation")) {
         log_error("Bioconductor package VariantAnnotation is required!")
@@ -120,7 +127,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     names(oncokbHits) <- fixed$hgvsg[rind]
     # Clean the hits from empty genes because of improper hgvs parsing
     oncokbHits = oncokbHits[!sapply(oncokbHits,
-        function(x) is.null(x$gene_symbol))]
+        function(x) is.null(x$gene_symbol) || x$oncogenic=="Unknown")]
     message("    Retrieved ",length(oncokbHits)," hits")
     
     geneResource <- list(
@@ -814,7 +821,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
         # - mutationEffect$knownEffect
         # - treatments[[x]]$drugs$ncitCode
         # - treatments[[x]]$drugs$drugName
-        responseData <- content(response,as="parsed",type="application/json")
+        responseData <- httr::content(response,as="parsed",type="application/json")
         shrinked <- lapply(responseData,function(x) {
             list(
                 gene_symbol=x$query$hugoSymbol,
@@ -875,19 +882,4 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     exprs <- paste(paste("\\b",excluded,"\\b",sep=""),collapse="|")
     return(which(!grepl(exprs,terms)))
 }
-
-#https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=clinvar&term=rs1801158&retmode=json
-#https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=clinvar&id=100094&retmode=json
-
-# This works
-#curl -X GET "https://www.oncokb.org/api/v1/annotate/mutations/byHGVSg?hgvsg=7%3Ag.140453136A%3ET&referenceGenome=GRCh37" -H "accept: application/json" -H "Authorization: Bearer 7cf0793d-db41-43e4-b8e1-83a7d73ed69a"
-
-# This does not
-#curl -X GET "https://www.oncokb.org/api/v1/annotate/mutations/byHGVSg?hgvsg=7:g.140453136A>T&referenceGenome=GRCh37" -H "accept: application/json" -H "Authorization: Bearer 7cf0793d-db41-43e4-b8e1-83a7d73ed69a"
-
-# We need to sanitize queries - OK made by httr
-# Extract SO terms from so-simple.json - here https://github.com/The-Sequence-Ontology/SO-Ontologies/tree/master/Ontology_Files
-# z <- fromJSON("so-simple.json")
-# labels <- sapply(z[[1]]$nodes,function(x) x[,"lbl"])
-# sovar <-  z=labels[grep("variant",labels)]
 
