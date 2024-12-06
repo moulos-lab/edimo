@@ -64,6 +64,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     # ... and bgzip/tabix
     .bgzip(vcfDir)
     .tabix(vcfDir)
+    
+    return(file.path(vcfDir,"annotated.vcf.gz"))
 }
 
 .chrRename <- function(vcfFile,gv) {
@@ -91,6 +93,9 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         vcfFile)
     # Define log file
     logfile <- file.path(vcfDir,"00_chrom_rename.log")
+    
+    # TODO: Somehow append humanCommand to the log file - ideally start with
+    # https://stackoverflow.com/questions/39273523/how-to-append-stderr-and-stdout-output-to-file-in-system2-r-command
     
     message("Executing:\n",humanCommand)
     out <- tryCatch({

@@ -1,8 +1,162 @@
-annotateAndInsertVariants <- function(analysisId) {
+annotateAndInsertVariants <- function(aid) {
     # Get VCF file and genome from analysisId
     # Open the VCF file in chunks of X variants
     # Call vcfToList
     # JSON the list, add the analysisId and insert
+    # TODO: Update analysis steps etc.
+    
+    cona <- mongoConnect("analyses")
+    conv <- mongoConnect("variants")
+    on.exit({
+        mongoDisconnect(cona)
+        mongoDisconnect(conv)
+    })
+    
+    # We assume that analysisId is checked for existence on API call so we do
+    # not do it here - leave for now
+    if (missing(aid) || !.checkId(aid,"analysis")) {
+        msg <- paste0("Analysis id (aid) ",aid," does not exist in the ",
+            "database!")
+        #log_error(msg)
+        stop(msg)
+    }
+    
+    # 1. Retrieve the analysis document
+    query <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+    ))
+    fields <- .toMongoJSON(list(
+        name=1L,
+        metadata=1L,
+        samples=1L,
+        ownership=1L
+    ))
+    
+    ## We cannot log at this point within futures...
+    #log_debug("Querying database for analysis ",analysisId,".")
+    #log_debug(.skipFormatter("MongoDB query is: ",query))
+    #log_debug(.skipFormatter("The selected fields are: ",fields))
+    
+    result <- cona$find(query=query,fields=fields)
+    
+    # 2. Create the analysis directory structure
+    uid <- result$ownership$inserted_by$id
+    uname <- .getUserName(uid)
+    analysisPath <- file.path(.getAppWorkspace(),"users",uid,"analyses",aid)
+    if (!dir.exists(analysisPath))
+        dir.create(analysisPath,recursive=TRUE,showWarnings=FALSE)
+    
+    # 4. Re-initialize purpose-specific loggers as this will be running within
+    #    futures framework
+    # Analysis logger in database
+    logger_db_analysis <- 
+        suppressWarnings(layout_json(c("time","level","fn","user","msg")))
+    log_layout(logger_db_analysis,index=1)
+    log_appender(function(lines) {
+        con <- mongoConnect("logs")
+        logmsg <- fromJSON(lines)
+        S <- strsplit(logmsg$msg,"#USER:")
+        msg <- trimws(S[[1]][1])
+        usr <- trimws(S[[1]][2])
+        d <- list(
+            timestamp=unbox(as.POSIXct(logmsg$time,tz="EET")),
+            level=logmsg$level,
+            caller=logmsg$fn,
+            message=msg,
+            sys_uname=logmsg$user,
+            user_name=usr
+        )
+        d <- .toMongoJSON(d)
+        con$insert(d)
+        mongoDisconnect(con)
+    },index=1)
+    # More extensive analysis logger in file
+    logger_debug_analysis <- layout_glue_generator(
+        format='{level} [{format(time, \"%Y-%m-%d %H:%M:%S\")}] | {fn} | {msg}')
+    log_layout(logger_debug_analysis,index=2)
+    log_threshold(DEBUG,index=2)
+    logfile <- file.path(analysisPath,"analysis.log")
+    log_appender(appender_file(file=logfile),index=2)
+    # Delete the loggers upon analysis finish - whatever happens
+    on.exit({
+        delete_logger_index(index=2)
+        delete_logger_index(index=1)
+    },add=TRUE)
+    
+    # 5. Retrieve the sample name/id and copy to analysis directory
+    sid <- result$samples[[1]]$id
+    pat <- paste0("^",sid,"\\.vcf(?:\\.gz)?$")
+    sampleDir <- file.path(.getAppWorkspace(),"users",uid,"samples",sid)
+    sampleFile <- dir(sampleDir,pattern=pat,full.names=TRUE)[1]
+    if (length(sampleFile) == 0) {
+        msg <- paste0("The required analysis file could not be found in the ",
+            "respective directory ",sampleDir,"! Consult admin.")
+        log_error(msg)
+        stop(msg)
+    }
+    
+    destFile <- file.path(analysisPath,basename(sampleFile))
+    
+    log_debug("Copying file from ",sampleFile," to ",destFile)
+    
+    copied <- tryCatch({
+        file.copy(from=sampleFile,to=destFile,overwrite=TRUE)
+    },error=function(e) {
+        log_error("Failed to copy analysis file to proper location! ",e$message,
+            " #USER: ",uname)
+        return(FALSE)
+    })
+    
+    # 6. If properly copied, initiate analysis - individual simple log files are
+    # created per analysis step
+    if (copied) {
+        log_info("Initiating analysis ",aid," of type ",
+            result$metadata$tertiary_protocol[1])
+
+        # This will be heavily changed...
+        log_info("Executing basic VCF annotation for analysis ",aid)
+        #message("Executing basic VCF annotation for analysis ",aid)
+        annoFile <- annotateVcf(destFile,gv=result$metadata$genome_version[1])
+        
+        log_info("Executing extended VCF annotation for analysis ",aid)
+        #message("Executing extended VCF annotation for analysis ",aid)
+        theList <- vcfToList(annoFile,gv=result$metadata$genome_version[1])
+        
+        log_info("Adding analysis id ",aid)
+        theList <- lapply(theList,function(x) {
+            x$analysis_id <- list(`$oid`=aid)
+            return(x)
+        })
+        
+        log_info("Inserting to database for analysis ",aid)
+        #message("Inserting to database for analysis ",aid)
+        mongoJson <- sapply(theList,.toMongoJSON)
+        
+        ins <- tryCatch({
+            conv$insert(mongoJson)
+        },error=function(e) {
+            log_error("Variants for analysis ",aid," failed to insert! ",
+                e$messsage) 
+            return(NULL)
+        })
+        
+        if (!is.null(ins) && is(ins,"miniprint")) {
+            if (ins$nInserted == length(mongoJson))
+                #message(length(mongoJson)," variants successfully inserted ",
+                #    "for analysis ",aid)
+                log_info(length(mongoJson)," variants successfully inserted ",
+                    "for analysis ",aid)
+            else
+                #message("Only ",ins$nInserted," variants successfully ",
+                #    "inserted for analysis ",aid,". Contact admins.")
+                log_warn("Only ",ins$nInserted," variants successfully ",
+                    "inserted for analysis ",aid,". Contact admins.")
+        }
+    }
+    else
+        stop("Failed to copy analysis file to proper location! Check logs.")
+    
+    return(invisible(TRUE))
 }
 
 vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
@@ -45,10 +199,10 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
         ref=as.character(ref(vcf)),
         alt=.makeAlt(vcf),
         qual=qual(vcf),
-        type=unlist(info(vcf)[["VARTYPE"]]),
-        # Genomic HGVS for search in COSMIC and MyVariant API
-        hgvsg=.makeHgvsg(fixed$chromosome,fixed$start,fixed$ref,fixed$alt)
+        type=unlist(info(vcf)[["VARTYPE"]])
     )
+    # Genomic HGVS for search in COSMIC and MyVariant API
+    fixed$hgvsg <- .makeHgvsg(fixed$chromosome,fixed$start,fixed$ref,fixed$alt)
     rownames(fixed) <- fixed$hgvsg
     
     # INFO metrics, depth etc.
@@ -184,7 +338,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     return(list(
         ac=ifelse(is.na(metrics$AC),metrics$AO,metrics$AC),
         af=metrics$AF,
-        ac=ifelse(is.na(metrics$AO),metrics$AC,metrics$AO),
+        ao=ifelse(is.na(metrics$AO),metrics$AC,metrics$AO),
         dp=metrics$DP,
         sbp=metrics$SBP,
         srf=metrics$SRF,
@@ -208,6 +362,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     dbnsfpPathoNames <- gsub("[\\+\\-]","_",.getVcfDbnsfpPathogenicityFields())
     patho <- dbnsfp[,dbnsfpPathoNames]
     colnames(patho) <- tolower(gsub("dbNSFP_","",colnames(patho)))
+    patho[patho == "."] <- NA
     colnames(clinvar) <- tolower(colnames(clinvar))
     return(as.list(cbind(patho,clinvar)))
 }
@@ -215,6 +370,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
 .getConservation <- function(dbnsfp) {
     dbnsfpConseNames <- gsub("[\\+\\-]","_",.getVcfDbnsfpConservationFields())
     cons <- dbnsfp[,dbnsfpConseNames]
+    cons[cons == "."] <- NA
     colnames(cons) <- tolower(gsub("dbNSFP_","",colnames(cons)))
     return(as.list(cons))
 }
@@ -225,14 +381,19 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     
     tgp <- dbnsfp[,grep("1000Gp3",colnames(dbnsfp))]
     colnames(tgp) <- tolower(gsub("dbNSFP_1000Gp3_","",colnames(tgp)))
+    tgp[tgp == "."] <- NA
     exac <- dbnsfp[,grep("ExAC",colnames(dbnsfp))]
     colnames(exac) <- tolower(gsub("dbNSFP_ExAC_","",colnames(exac)))
+    exac[exac == "."] <- NA
     esp <- dbnsfp[,grep("ESP6500",colnames(dbnsfp))]
     colnames(esp) <- tolower(gsub("dbNSFP_ESP6500_","",colnames(esp)))
+    esp[esp== "."] <- NA
     uk10k <- dbnsfp[,grep("UK10K",colnames(dbnsfp))]
     colnames(uk10k) <- tolower(gsub("dbNSFP_UK10K_","",colnames(uk10k)))
+    uk10k[uk10k == "."] <- NA
     alfa <- dbnsfp[,grep("ALFA",colnames(dbnsfp))]
     colnames(alfa) <- tolower(gsub("dbNSFP_ALFA_","",colnames(alfa)))
+    alfa[alfa == "."] <- NA
     
     colnames(gnomadExomes) <- tolower(gsub("gnomAD_exomes_","",
         colnames(gnomadExomes)))
@@ -240,13 +401,13 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
         colnames(gnomadGenomes)))
     
     return(list(
-        tgp=tgp,
-        exac=exac,
-        esp=esp,
-        uk10k=uk10k,
-        alfa=alfa,
-        gnomad_exomes=gnomadExomes,
-        gnomad_genomes=gnomadGenomes
+        tgp=as.list(tgp),
+        exac=as.list(exac),
+        esp=as.list(esp),
+        uk10k=as.list(uk10k),
+        alfa=as.list(alfa),
+        gnomad_exomes=as.list(gnomadExomes),
+        gnomad_genomes=as.list(gnomadGenomes)
     ))
 }
 

@@ -192,7 +192,8 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         statics=.defineStaticsCollection(),
         institutions=.defineInstitutionsCollection(),
         samples=.defineSamplesCollection(),
-        analyses=.defineAnalysesCollection()
+        analyses=.defineAnalysesCollection(),
+        variants=.defineVariantsCollection()
     ))
 }
 

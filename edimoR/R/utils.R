@@ -279,6 +279,11 @@ generateConfigTemplate <- function() {
             con <- mongoConnect("samples")
             on.exit(mongoDisconnect(con))
             result <- con$find(query,fields='{"_id": 1}')
+        },
+        analysis = {
+            con <- mongoConnect("analyses")
+            on.exit(mongoDisconnect(con))
+            result <- con$find(query,fields='{"_id": 1}')
         }
     )
     return(ifelse(nrow(result)>0,TRUE,FALSE))

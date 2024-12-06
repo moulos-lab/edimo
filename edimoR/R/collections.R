@@ -575,6 +575,27 @@
                 }
               }
             },
+            "analyses": {
+              "bsonType": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "properties": {
+                  "id": {
+                    "bsonType": "objectId"
+                  },
+                  "name": {
+                    "bsonType": "string"
+                  }
+                }
+              }
+            },
             "genome_size": {
               "bsonType": "array",
               "items": {
@@ -1395,6 +1416,14 @@
         "strength": 2
       },
       "validationLevel": "moderate"
+    }'
+    )
+}
+
+.defineVariantsCollection <- function() {
+    return(
+    '{
+      "create": "variants" 
     }'
     )
 }
