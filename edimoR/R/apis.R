@@ -28,3 +28,12 @@ function(res,req,sid,uid) {
 function(res,req,sid,uid) {
     return(deleteSampleFiles(res,req,sid,uid))
 }
+
+#* Run analysis (type is determined within)
+#* @param aid The analysis id to perform
+#* @param uid The running user id (can be null)
+#* @get /run_analysis
+function(res,req,typ,aid,uid) {
+    return(runAnalysis(res,req,typ,aid,uid))
+}
+

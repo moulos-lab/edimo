@@ -27,6 +27,14 @@ generateConfigTemplate <- function() {
     return(.CONFIG$paths$workspace)
 }
 
+.getQueueDb <- function() {
+    if (is.null(.CONFIG$paths$workspace)) {
+        log_error("FATAL! Application main workspace is not defined!")
+        stop("FATAL! Application main workspace is not defined!")
+    }
+    return(file.path(.CONFIG$paths$workspace,"queue","queue.sqlite"))
+}
+
 .getApiSecret <- function() {
     if (is.null(.CONFIG$auth$secret)) {
         log_error("FATAL! Main authentication secret token is not defined!")
@@ -41,6 +49,79 @@ generateConfigTemplate <- function() {
         stop("FATAL! OncoKB API token is not defined!")
     }
     return(.CONFIG$auth$oncokb)
+}
+
+.getNoAnalysisSteps <- function(type) {
+    if (is.null(.CONFIG$helpers$steps)) {
+        log_error("FATAL! Helper variables are not defined!")
+        stop("FATAL! Helper variables are not defined!")
+    }
+    return(.CONFIG$helpers$steps[[type]])
+}
+
+.getCoresFraction <- function() {
+    if (is.null(.CONFIG$helpers$runtime)) {
+        log_warn("Helper variable for cores is not defined! Will use default.")
+        warning("Helper variable for cores is not defined! Will use default.",
+            immediate.=TRUE)
+        return(0.25)
+    }
+    return(.CONFIG$helpers$runtime$cores_fraction)
+}
+
+.getJsonifyLimit <- function() {
+    if (is.null(.CONFIG$helpers$runtime)) {
+        log_warn(paste0("Helper variable for jsonify parallelization not ",
+            "defined! Will use default."))
+        warning(paste0("Helper variable for jsonify parallelization not ",
+            "defined! Will use default."),immediate.=TRUE)
+        return(1000)
+    }
+    return(.CONFIG$helpers$runtime$parallel_jsonify_limit)
+}
+
+.getVcfReadChunkSize <- function() {
+    if (is.null(.CONFIG$helpers$runtime)) {
+        log_warn(paste0("Helper variable for VCF import chunk size not ",
+            "defined! Will use default."))
+        warning(paste0("Helper variable for VCF import chunk size not ",
+            "defined! Will use default."),immediate.=TRUE)
+        return(5000)
+    }
+    return(.CONFIG$helpers$runtime$vcf_read_chunksize)
+}
+
+.getJobConcurrency <- function() {
+    if (is.null(.CONFIG$helpers$runtime)) {
+        log_warn(paste0("Helper variable for job concurrency not defined! ",
+            "Will use default."))
+        warning(paste0("Helper variable for job concurrency not defined! ",
+            "Will use default."),immediate.=TRUE)
+        return(4)
+    }
+    return(.CONFIG$helpers$runtime$job_concurrency)
+}
+
+.getQueuePollInterval <- function() {
+    if (is.null(.CONFIG$helpers$runtime)) {
+        log_warn(paste0("Helper variable for queue poll interval not defined! ",
+            "Will use default."))
+        warning(paste0("Helper variable for queue poll interval not defined! ",
+            "Will use default."),immediate.=TRUE)
+        return(10000)
+    }
+    return(.CONFIG$helpers$runtime$queue_poll_interval)
+}
+
+.getJobTimeout <- function() {
+    if (is.null(.CONFIG$helpers$runtime)) {
+        log_warn(paste0("Helper variable for job timeout not defined! ",
+            "Will use default."))
+        warning(paste0("Helper variable for job timeout not defined! ",
+            "Will use default."),immediate.=TRUE)
+        return(8.64e+8)
+    }
+    return(.CONFIG$helpers$runtime$job_timeout)
 }
 
 .initConfig <- function(conf) {
@@ -59,17 +140,20 @@ generateConfigTemplate <- function() {
     .CONFIG$mail <- conf$mail
     .CONFIG$software <- conf$software
     .CONFIG$static_files <- conf$static_files
+    .CONFIG$helpers <- conf$helpers
 }
 
 .initAppPaths <- function() {
     .PATHS <- .CONFIG$paths
-    .WORKSPACE <- .PATHS$workspace
     
-    if (!dir.exists(.WORKSPACE)) {
-        dir.create(.WORKSPACE,recursive=TRUE,showWarnings=FALSE)
-        dir.create(file.path(.WORKSPACE,"users"),recursive=TRUE,
+    if (!dir.exists(.PATHS$workspace)) {
+        dir.create(.PATHS$workspace,recursive=TRUE,showWarnings=FALSE)
+        dir.create(file.path(.PATHS$workspace,"users"),recursive=TRUE,
             showWarnings=FALSE)
-        dir.create(logdir,recursive=TRUE,showWarnings=FALSE)
+        dir.create(file.path(.PATHS$workspace,"logs"),recursive=TRUE,
+            showWarnings=FALSE)
+        dir.create(file.path(.PATHS$workspace,"queue"),recursive=TRUE,
+            showWarnings=FALSE)
     }
 }
 
@@ -198,8 +282,10 @@ generateConfigTemplate <- function() {
 
 .checkNumArgs <- function(argName,argValue,argType,argBounds,direction) {
     # First generic check so not to continue if fail
-    if (!is(argValue,argType))
+    if (!is(argValue,argType)) {
+        log_error("\"",argName,"\" parameter must be a(n) ",argType," value!")
         stop("\"",argName,"\" parameter must be a(n) ",argType," value!")
+    }
     
     # Then, proceed with a lookup table to avoid repetition (suggested by
     # Marcel Ramos during package review)
@@ -244,26 +330,38 @@ generateConfigTemplate <- function() {
     check <- lapply(lookup[[direction]],function(f) f(argValue))
     if (argType == "numeric" && check$cls == "integer")
         argType <- "integer"
-    if (check$fail || check$cls != argType)
+    if (check$fail || check$cls != argType) {
+        log_error("\"",argName,"\""," parameter must be a(n) ",argType,
+            " value ",check$msg,"!")
         stop("\"",argName,"\""," parameter must be a(n) ",argType,
             " value ",check$msg,"!")
+    }
 }
 
 .checkTextArgs <- function(argName,argValue,argList,multiarg=FALSE) {
-    if (!is.character(argValue))
+    if (!is.character(argValue)) {
+        log_error(argValue," must be a character scalar or vector!")
         stop(argValue," must be a character scalar or vector!")
+    }
+    
     if (multiarg) {
         argValue <- tolower(argValue)
-        if (!all(argValue %in% argList))
+        if (!all(argValue %in% argList)) {
+            log_error("\"",argName,"\""," parameter must be one or more of ",
+                paste(paste("\"",argList,sep=""),collapse="\", "),"\"!")
             stop("\"",argName,"\""," parameter must be one or more of ",
                 paste(paste("\"",argList,sep=""),collapse="\", "),"\"!")
+        }
     }
     else {
         argSave <- argValue[1]
         argValue <- tolower(argValue[1])    
-        if (!(argValue %in% argList))
+        if (!(argValue %in% argList)) {
+            log_error("\"",argName,"\""," parameter must be one of ",
+                paste(paste("\"",argList,sep=""),collapse="\", "),"\"!")
             stop("\"",argName,"\""," parameter must be one of ",
                 paste(paste("\"",argList,sep=""),collapse="\", "),"\"!")
+        }            
     }
 }
 
@@ -303,6 +401,58 @@ generateConfigTemplate <- function() {
     return(paste0(result$profile$name," ",result$profile$surname))
 }
 
+.updateAnalysisProgress <- function(aid,step,pct,desc) {
+    if (is.null(aid))
+        return(invisible(aid))
+    
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            progress.step=unbox(as.integer(step)),
+            progress.pct=unbox(as.integer(pct)),
+            progress.desc=unbox(desc)
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
+
+.updateAnalysisFailReason <- function(aid,reason) {
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            metadata.fail_reason=unbox(reason),
+            metadata.status=unbox("Failed")
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
+
+.updateAnalysisJobId <- function(aid,jobid) {
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            metadata.job_id=unbox(jobid),
+            metadata.status=unbox("Running")
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
+
 cmclapply <- function(...,rc) {
     if (suppressWarnings(!requireNamespace("parallel")) 
         || .Platform$OS.type!="unix")
@@ -323,6 +473,13 @@ cmclapply <- function(...,rc) {
         return(mclapply(...,mc.cores=ncores,mc.set.seed=FALSE))
     else
         return(lapply(...))
+}
+
+.randomString <- function(n=1,s=5) {
+    NUMBERS <- as.character(seq(0,9))
+    SPACE <- sample(c(LETTERS,tolower(LETTERS),NUMBERS),
+        2*length(LETTERS)+length(NUMBERS))
+    return(do.call(paste0,replicate(s,sample(SPACE,n,replace=TRUE),FALSE)))
 }
 
 .openSink <- function(f) {

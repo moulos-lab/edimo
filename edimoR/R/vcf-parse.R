@@ -1,3 +1,6 @@
+#annotateAndInsertVariants("6751d3d556bbcd63da4958df")
+#annotateAndInsertVariants("6753145356bbcd63da4958e0")
+#annotateAndInsertVariants("6759ac2756bbcd63da4958e3")
 annotateAndInsertVariants <- function(aid) {
     # Get VCF file and genome from analysisId
     # Open the VCF file in chunks of X variants
@@ -41,47 +44,14 @@ annotateAndInsertVariants <- function(aid) {
     
     # 2. Create the analysis directory structure
     uid <- result$ownership$inserted_by$id
-    uname <- .getUserName(uid)
+    #uname <- .getUserName(uid)
     analysisPath <- file.path(.getAppWorkspace(),"users",uid,"analyses",aid)
     if (!dir.exists(analysisPath))
         dir.create(analysisPath,recursive=TRUE,showWarnings=FALSE)
     
     # 4. Re-initialize purpose-specific loggers as this will be running within
-    #    futures framework
-    # Analysis logger in database
-    logger_db_analysis <- 
-        suppressWarnings(layout_json(c("time","level","fn","user","msg")))
-    log_layout(logger_db_analysis,index=1)
-    log_appender(function(lines) {
-        con <- mongoConnect("logs")
-        logmsg <- fromJSON(lines)
-        S <- strsplit(logmsg$msg,"#USER:")
-        msg <- trimws(S[[1]][1])
-        usr <- trimws(S[[1]][2])
-        d <- list(
-            timestamp=unbox(as.POSIXct(logmsg$time,tz="EET")),
-            level=logmsg$level,
-            caller=logmsg$fn,
-            message=msg,
-            sys_uname=logmsg$user,
-            user_name=usr
-        )
-        d <- .toMongoJSON(d)
-        con$insert(d)
-        mongoDisconnect(con)
-    },index=1)
-    # More extensive analysis logger in file
-    logger_debug_analysis <- layout_glue_generator(
-        format='{level} [{format(time, \"%Y-%m-%d %H:%M:%S\")}] | {fn} | {msg}')
-    log_layout(logger_debug_analysis,index=2)
-    log_threshold(DEBUG,index=2)
-    logfile <- file.path(analysisPath,"analysis.log")
-    log_appender(appender_file(file=logfile),index=2)
-    # Delete the loggers upon analysis finish - whatever happens
-    on.exit({
-        delete_logger_index(index=2)
-        delete_logger_index(index=1)
-    },add=TRUE)
+    #    futures framework, however, not needed when not with futures?
+    .analysis_logger(analysisPath)
     
     # 5. Retrieve the sample name/id and copy to analysis directory
     sid <- result$samples[[1]]$id
@@ -102,8 +72,9 @@ annotateAndInsertVariants <- function(aid) {
     copied <- tryCatch({
         file.copy(from=sampleFile,to=destFile,overwrite=TRUE)
     },error=function(e) {
-        log_error("Failed to copy analysis file to proper location! ",e$message,
-            " #USER: ",uname)
+        #log_error("Failed to copy analysis file to proper location! ",e$message,
+        #    " #USER: ",uname)
+        log_error("Failed to copy analysis file to proper location! ",e$message)
         return(FALSE)
     })
     
@@ -113,14 +84,25 @@ annotateAndInsertVariants <- function(aid) {
         log_info("Initiating analysis ",aid," of type ",
             result$metadata$tertiary_protocol[1])
 
-        # This will be heavily changed...
         log_info("Executing basic VCF annotation for analysis ",aid)
         #message("Executing basic VCF annotation for analysis ",aid)
-        annoFile <- annotateVcf(destFile,gv=result$metadata$genome_version[1])
+        annoFile <- annotateVcf(destFile,gv=result$metadata$genome_version[1],
+            aid=aid)
         
+        # TODO: In the future. vcfToList will accept one more argument according
+        #       to variant annotation type (somatic, germline, etc.)
+        aType <- "generic" # Will be analysis-based
         log_info("Executing extended VCF annotation for analysis ",aid)
         #message("Executing extended VCF annotation for analysis ",aid)
-        theList <- vcfToList(annoFile,gv=result$metadata$genome_version[1])
+        theList <- vcfToList(
+            vcfFile=annoFile,
+            gv=result$metadata$genome_version[1],
+            chunkSize=.getVcfReadChunkSize(),
+            aType=aType
+        )
+        # Analysis step 7 complete - update progress
+        nsteps <- .getNoAnalysisSteps("basic")
+        .updateAnalysisProgress(aid,7,100*(7/nsteps),"Annotations")
         
         log_info("Adding analysis id ",aid)
         theList <- lapply(theList,function(x) {
@@ -130,7 +112,12 @@ annotateAndInsertVariants <- function(aid) {
         
         log_info("Inserting to database for analysis ",aid)
         #message("Inserting to database for analysis ",aid)
-        mongoJson <- sapply(theList,.toMongoJSON)
+        if (length(theList) >= .getJsonifyLimit()) {
+            mongoJson <- cmclapply(theList,.toMongoJSON,rc=.getCoresFraction())
+            mongoJson <- unlist(mongoJson,recursive=FALSE)
+        }
+        else
+            mongoJson <- sapply(theList,.toMongoJSON)
         
         ins <- tryCatch({
             conv$insert(mongoJson)
@@ -152,14 +139,21 @@ annotateAndInsertVariants <- function(aid) {
                 log_warn("Only ",ins$nInserted," variants successfully ",
                     "inserted for analysis ",aid,". Contact admins.")
         }
+        # Analysis step 8 complete - update progress
+        .updateAnalysisProgress(aid,8,100*(8/nsteps),"Complete")
     }
-    else
+    else {
+        .updateAnalysisProgress(aid,8,100*(8/nsteps),"Failed")
+        .updateAnalysisFailReason(aid,
+            "Failed to copy analysis file to proper location! Check logs.")
         stop("Failed to copy analysis file to proper location! Check logs.")
+    }
     
     return(invisible(TRUE))
 }
 
-vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
+vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
+    aType=c("generic","somatic","germline")) {
     if (!requireNamespace("VariantAnnotation")) {
         log_error("Bioconductor package VariantAnnotation is required!")
         stop("Bioconductor package VariantAnnotation is required!")
@@ -174,18 +168,56 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
         stop(paste0("The input VCF file ",vcfFile," does not exist!"))
     }
     
+    aType <- aType[1]
+    
     .checkTextArgs("Genome version",gv,c("hg19","hg38"),multiarg=FALSE)
+    .checkNumArgs("VCF chunk size (chunkSize)",chunkSize,"numeric",1000,"gt")
+    .checkTextArgs("Annotation type",aType,c("generic","somatic","germline"),
+        multiarg=FALSE)
     
-    # Warnings may be produced during validation - some dNSFP versions produce
-    # problematic VCF headers
+    # We now decide whether to read the total file or by chunks. If the file is
+    # larger than 5000 lines, we read by chunks of 5000
+    #log_info("Reading VCF file ",vcfFile)
     message("Reading VCF file ",vcfFile)
-    vcf <- suppressWarnings(readVcf(vcfFile))
-    nucleoGenos <- readGT(vcfFile,nucleotides=TRUE)
+    nl <- R.utils::countLines(vcfFile)
+    #log_info("Input VCF file contains around ",nl," variants")
+    message("Input VCF file contains around ",nl," variants")
+    if (nl > .getVcfReadChunkSize()) {
+        #log_info("I will annotate in chunks of ",chunkSize," variants")
+        message("I will annotate in chunks of ",chunkSize," variants")
+        chunkNo <- 0
+        varsList <- list()
+        vcfCon <- VcfFile(vcfFile,yieldSize=chunkSize)
+        open(vcfCon)
+        repeat {
+            chunkNo <- chunkNo + 1
+            vcf <- suppressWarnings(readVcf(vcfCon))
+            if (length(vcf) == 0)
+                break
+            #log_info("Annotating chunk ",chunkNo)
+            message("Annotating chunk ",chunkNo)
+            nucleoGenos <- readGT(vcfCon,nucleotides=TRUE)
+            varsList[[chunkSize]] <- .vcfToListWorker(vcf,nucleoGenos,gv,aType)
+        }
+        close(vcfCon)
+        return(do.call("c",varsList))
+    }
+    else {
+        #log_info("I will annotate in single pass")
+        # Warnings may be produced during validation - some dNSFP versions 
+        # produce problematic VCF headers
+        vcf <- suppressWarnings(readVcf(vcfFile))
+        nucleoGenos <- readGT(vcfFile,nucleotides=TRUE)
+        return(.vcfToListWorker(vcf,nucleoGenos,gv,aType))
+    }
+}   
     
+.vcfToListWorker <- function(vcf,nucleoGenos,gv,aType) {    
     # Derive the main building blocks of the list that will represent a document
     # for a single variant in the database. With the building block below, we
     # build the initial document list which will later be enriched from entries
     # from our knowledge base and API calls.
+    #log_info("Building variant document blocks")
     message("Building variant document blocks")
     
     # dbSNP id arrays
@@ -212,19 +244,32 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     # If VCF normalized as per our workflow, this should work, also attach
     # nucleotide version of genotypes
     genos <- as.data.frame(cbind(nucleoGenos,do.call("cbind",geno(vcf))))
-    genos[,3] <- as.numeric(genos[,3])
-    genos[,4] <- as.numeric(genos[,4])
+    genos[,1] <- as.character(unname(genos[,1]))
+    genos[,2] <- as.character(unname(genos[,2]))
+    genos[,3] <- as.numeric(unname(genos[,3]))
+    genos[,5] <- as.numeric(unname(genos[,5]))
+    genos[,6] <- as.numeric(unname(genos[,6]))
+    genos[,7] <- as.numeric(unname(genos[,7]))
     colnames(genos) <- c("GTN",.getDefaultGenoFields())
-    
+    # Split the AD column
+    ads <- do.call("rbind",unname(genos[,4]))
+    colnames(ads) <- c("AD_REF","AD_ALT")
+    genos <- genos[,-4]
+    genos <- cbind(genos,ads)
+    rownames(genos) <- NULL
     # Basic SnpEff annotations
     ANN <- info(vcf)["ANN"]
-    annList <- cmclapply(ANN[,1],.parseANN,rc=0.25)
+    annList <- cmclapply(ANN[,1],.parseANN,rc=.getCoresFraction())
     
     # dbNSFP annotations - + and - symbols are replaced with _ during import...
     # We split pathogenicity, conservation and population as these will be
     # different section in the variant document
     dbnsfpNames <- gsub("[\\+\\-]","_",.getVcfDbnsfpFields())
     dbnsfp <- .greedyUncompressDataFrame(info(vcf)[,dbnsfpNames])
+    dbnsfp[dbnsfp=="."] <- NA
+    tonum <- setdiff(seq_along(colnames(dbnsfp)),grep("_pred",colnames(dbnsfp)))
+    # Some Aloft probabilities are malformed - it's OK
+    dbnsfp[,tonum] <- suppressWarnings(sapply(dbnsfp[,tonum],as.numeric))
     
     # Population annotations
     gnomadExomes <- 
@@ -239,62 +284,14 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     
     # Get all genes present in VCF to construct hashes of hits in backend
     # collections such as disgenet, hpo etc.
+    #log_info("Retrieving annotation elements from knowledge base")
     message("Retrieving annotation elements from knowledge base")
     vcfVariants <- unlist(rsids)
     vcfVariants <- vcfVariants[grepl("^rs",vcfVariants)]
     vcfGenes <- unique(unlist(lapply(annList,function(x) x[,"gene_name"])))
-    
-    message("  DisGeNET for genes")
-    disgenetGeneHits <- .findDisgenetByGene(vcfGenes)
-    message("    Retrieved ",nrow(disgenetGeneHits)," hits")
-    
-    message("  DisGeNET for variants")
-    disgenetVariantHits <- .findDisgenetByVariant(vcfVariants)
-    message("    Retrieved ",nrow(disgenetVariantHits)," hits")
-    
-    message("  Human Phenotype Ontology")
-    hpoHits <- .findHpoByGene(vcfGenes)
-    message("    Retrieved ",length(hpoHits)," hits")
-    
-    message("  Comparative Toxicogenomics Database")
-    ctdHits <- .findCtdByGene(vcfGenes)
-    message("    Retrieved ",length(ctdHits)," hits")
-    
-    message("  Clinical Genomics Database")
-    cgdHits <- .findCgdInheritanceByGene(vcfGenes)
-    message("    Retrieved ",nrow(cgdHits)," hits")
-    
-    message("  COSMIC")
-    cosmicHits <- .findCosmicByVariant(fixed$hgvsg,gv)
-    message("    Retrieved ",nrow(cosmicHits)," hits")
-
-    message("  PharmGKB")
-    pharmgkbHits <- .findPharmGkbByVariant(vcfVariants)
-    message("    Retrieved ",nrow(pharmgkbHits)," hits")
-    
-    message(" OncoKB")
-    allSoTerms <- unname(sapply(annList,function(x) {
-        return(x[1,"detailed_impact_so_term"])
-    }))
-    rind <- .filterSoTermsForApiCalls(allSoTerms)
-    oncokbHits <- .queryOncoKB(fixed$hgvsg[rind],gv)
-    names(oncokbHits) <- fixed$hgvsg[rind]
-    # Clean the hits from empty genes because of improper hgvs parsing
-    oncokbHits = oncokbHits[!sapply(oncokbHits,
-        function(x) is.null(x$gene_symbol) || x$oncogenic=="Unknown")]
-    message("    Retrieved ",length(oncokbHits)," hits")
-    
-    geneResource <- list(
-        disgenet=disgenetGeneHits,
-        hpo=hpoHits,
-        ctd=ctdHits,
-        cgd=cgdHits
-    )
-    variantResource <- list(
-        disgenet=disgenetVariantHits,
-        pharmgkb=pharmgkbHits,
-        oncokb=oncokbHits
-    )
+        
+    geneResource <- .makeGeneResource(aType,vcfGenes)
+    variantResource <- .makeVariantResource(aType,vcfVariants,annList,fixed,gv)
     
     message("Building variant documents")
     # Ultimately this may end very large... Maybe we could process it in chunks
@@ -302,7 +299,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     # this function... This would also reduce the burden on API calls...
     docs <- lapply(seq_along(vcf),function(i) {
         list(
-            identity=.getIdentity(fixed[i,,drop=FALSE],rsids[[i]],cosmicHits),
+            identity=.getIdentity(fixed[i,,drop=FALSE],rsids[[i]],
+                variantResource$cosmicHits),
             metrics=.getMetrics(metrics[i,]),
             genotypes=.getGenotype(genos[i,,drop=FALSE]),
             pathogenicity=.getPathogenicity(dbnsfp[i,,drop=FALSE],
@@ -318,6 +316,85 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     })
     message("Done!")
     return(docs)
+}
+
+.makeGeneResource <- function(aType,vcfGenes) {
+    switch(aType,
+        generic = {
+            #log_info("  DisGeNET for genes")
+            message("  DisGeNET for genes")
+            disgenetGeneHits <- .findDisgenetByGene(vcfGenes)
+            #log_info("    Retrieved ",nrow(disgenetGeneHits)," hits")
+            message("    Retrieved ",nrow(disgenetGeneHits)," hits")
+            
+            #log_info("  Human Phenotype Ontology")
+            message("  Human Phenotype Ontology")
+            hpoHits <- .findHpoByGene(vcfGenes)
+            #log_info("    Retrieved ",length(hpoHits)," hits")
+            message("    Retrieved ",length(hpoHits)," hits")
+            
+            #log_info("  Comparative Toxicogenomics Database")
+            message("  Comparative Toxicogenomics Database")
+            ctdHits <- .findCtdByGene(vcfGenes)
+            #log_info("    Retrieved ",length(ctdHits)," hits")
+            message("    Retrieved ",length(ctdHits)," hits")
+            
+            #log_info("  Clinical Genomics Database")
+            message("  Clinical Genomics Database")
+            cgdHits <- .findCgdInheritanceByGene(vcfGenes)
+            #log_info("    Retrieved ",nrow(cgdHits)," hits")
+            message("    Retrieved ",nrow(cgdHits)," hits")
+            
+            return(list(
+                disgenet=disgenetGeneHits,
+                hpo=hpoHits,
+                ctd=ctdHits,
+                cgd=cgdHits
+            ))
+        },
+        somatic = {},
+        germline = {}
+    )
+}
+
+.makeVariantResource <- function(aType,vcfVariants,annList,fixed,gv) {
+    switch(aType,
+        generic = {
+            #log_info("  DisGeNET for variants")
+            message("  DisGeNET for variants")
+            disgenetVariantHits <- .findDisgenetByVariant(vcfVariants)
+            #log_info("    Retrieved ",nrow(disgenetVariantHits)," hits")
+            message("    Retrieved ",nrow(disgenetVariantHits)," hits")
+            
+            message("  COSMIC")
+            cosmicHits <- .findCosmicByVariant(fixed$hgvsg,gv)
+            message("    Retrieved ",nrow(cosmicHits)," hits")
+
+            message("  PharmGKB")
+            pharmgkbHits <- .findPharmGkbByVariant(vcfVariants)
+            message("    Retrieved ",nrow(pharmgkbHits)," hits")
+            
+            message(" OncoKB")
+            allSoTerms <- unname(sapply(annList,function(x) {
+                return(x[1,"detailed_impact_so_term"])
+            }))
+            rind <- .filterSoTermsForApiCalls(allSoTerms)
+            oncokbHits <- .queryOncoKB(fixed$hgvsg[rind],gv)
+            names(oncokbHits) <- fixed$hgvsg[rind]
+            # Clean the hits from empty genes because of improper hgvs parsing
+            oncokbHits = oncokbHits[!sapply(oncokbHits,
+                function(x) is.null(x$gene_symbol) || x$oncogenic=="Unknown")]
+            message("    Retrieved ",length(oncokbHits)," hits")
+            
+            return(list(
+                disgenet=disgenetVariantHits,
+                pharmgkb=pharmgkbHits,
+                oncokb=oncokbHits
+            ))
+        },
+        somatic = {},
+        germline = {}
+    )
 }
 
 .getIdentity <- function(fixed,rsids,ch) {
@@ -353,6 +430,9 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
         gtn=genos$GTN,
         gn=genos$GT,
         dp=genos$DP,
+        ad_ref=genos$AD_REF,
+        ad_alt=genos$AD_ALT,
+        af=genos$AF,
         gq=genos$GQ,
         sb=genos$SB
     ))
@@ -362,7 +442,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     dbnsfpPathoNames <- gsub("[\\+\\-]","_",.getVcfDbnsfpPathogenicityFields())
     patho <- dbnsfp[,dbnsfpPathoNames]
     colnames(patho) <- tolower(gsub("dbNSFP_","",colnames(patho)))
-    patho[patho == "."] <- NA
+    #patho[patho == "."] <- NA
     colnames(clinvar) <- tolower(colnames(clinvar))
     return(as.list(cbind(patho,clinvar)))
 }
@@ -370,7 +450,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
 .getConservation <- function(dbnsfp) {
     dbnsfpConseNames <- gsub("[\\+\\-]","_",.getVcfDbnsfpConservationFields())
     cons <- dbnsfp[,dbnsfpConseNames]
-    cons[cons == "."] <- NA
+    #cons[cons == "."] <- NA
     colnames(cons) <- tolower(gsub("dbNSFP_","",colnames(cons)))
     return(as.list(cons))
 }
@@ -381,19 +461,19 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     
     tgp <- dbnsfp[,grep("1000Gp3",colnames(dbnsfp))]
     colnames(tgp) <- tolower(gsub("dbNSFP_1000Gp3_","",colnames(tgp)))
-    tgp[tgp == "."] <- NA
+    #tgp[tgp == "."] <- NA
     exac <- dbnsfp[,grep("ExAC",colnames(dbnsfp))]
     colnames(exac) <- tolower(gsub("dbNSFP_ExAC_","",colnames(exac)))
-    exac[exac == "."] <- NA
+    #exac[exac == "."] <- NA
     esp <- dbnsfp[,grep("ESP6500",colnames(dbnsfp))]
     colnames(esp) <- tolower(gsub("dbNSFP_ESP6500_","",colnames(esp)))
-    esp[esp== "."] <- NA
+    #esp[esp== "."] <- NA
     uk10k <- dbnsfp[,grep("UK10K",colnames(dbnsfp))]
     colnames(uk10k) <- tolower(gsub("dbNSFP_UK10K_","",colnames(uk10k)))
-    uk10k[uk10k == "."] <- NA
+    #uk10k[uk10k == "."] <- NA
     alfa <- dbnsfp[,grep("ALFA",colnames(dbnsfp))]
     colnames(alfa) <- tolower(gsub("dbNSFP_ALFA_","",colnames(alfa)))
-    alfa[alfa == "."] <- NA
+    #alfa[alfa == "."] <- NA
     
     colnames(gnomadExomes) <- tolower(gsub("gnomAD_exomes_","",
         colnames(gnomadExomes)))
@@ -551,9 +631,6 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     return(strsplit(n,";"))
 }
 
-#"Functional annotations: 'Allele | Annotation | Annotation_Impact | Gene_Name | Gene_ID | Feature_Type | Feature_ID | Transcript_BioType | Rank | HGVS.c | HGVS.p | cDNA.pos / cDNA.length | CDS.pos / CDS.length | AA.pos / AA.length | Distance | ERRORS / WARNINGS / INFO'"
-
-
 .makeAlt <- function(v) {
     a <- alt(v)
     names(a) <- 1:length(a)
@@ -687,6 +764,19 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     ))
     result <- con$find(query,fields)
     if (nrow(result) > 0) {
+        if (any(duplicated(result[,1]))) { # Duplicate genes may arise
+            dd <- which(duplicated(result[,1]))
+            remList <- list()
+            counter <- 0
+            for (j in dd) {
+                counter <- counter + 1
+                multiIndex <- which(result[,1] == result[j,1])
+                networks <- do.call("rbind",result[multiIndex,"network"])
+                result[multiIndex[1],"network"][[1]] <- list(networks)
+                remList[[counter]] <- multiIndex[2:length(multiIndex)]
+            }
+            result <- result[-unlist(remList),,drop=FALSE]
+        }
         rownames(result) <- result[,1]
         return(result)
     }
@@ -774,10 +864,24 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
         "network.name"=1L
     ))
     result <- con$find(query,fields)
-    if (nrow(result) > 0)
+    if (nrow(result) > 0) {
+        if (any(duplicated(result[,1]))) { # Duplicate genes may arise
+            dd <- which(duplicated(result[,1]))
+            remList <- list()
+            counter <- 0
+            for (j in dd) {
+                counter <- counter + 1
+                multiIndex <- which(result[,1] == result[j,1])
+                networks <- do.call("rbind",result[multiIndex,"network"])
+                result[multiIndex[1],"network"][[1]] <- list(networks)
+                remList[[counter]] <- multiIndex[2:length(multiIndex)]
+            }
+            result <- result[-unlist(remList),,drop=FALSE]
+        }
         rownames(result) <- result[,1]
-    
-    return(result)
+        return(result)
+    }
+    return(NULL)
 }
 
 .findHpoByGene <- function(genes,ver="20240813") {
@@ -813,6 +917,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
                 }
             }
         }
+        # Remove NULLs
+        genesResult <- genesResult[which(!sapply(genesResult,is.null))]
         return(genesResult)
     }
     return(NULL)
@@ -872,80 +978,107 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     return(NULL)
 }
 
-.makeHgvsg <- function(chromosome, start, reference, alternative) {
-  # Ensure inputs are of equal length
-  if (!(length(chromosome) == length(start) &&
-        length(start) == length(reference) &&
-        length(reference) == length(alternative))) {
-    stop("All input vectors must have the same length.")
-  }
+.makeHgvsg <- function(chr,start,ref,alt) {
+    # Ensure inputs are of equal length
+    if (!(length(chr) == length(start) 
+        && length(start) == length(ref) 
+        && length(ref) == length(alt))) {
+        log_error("All input vectors must have the same length.")
+        stop("All input vectors must have the same length.")
+    }
   
-  # Determine lengths of reference and alternative alleles
-  ref_len <- nchar(reference)
-  alt_len <- nchar(alternative)
+    # Determine lengths of ref and alt alleles
+    ref_len <- nchar(ref)
+    alt_len <- nchar(alt)
   
-  # Initialize HGVS vector
-  hgvs <- character(length(chromosome))
+    # Initialize HGVS vector
+    hgvs <- character(length(chr))
   
-  # SNP: Single Nucleotide Polymorphism
-  snp_idx <- ref_len == 1 & alt_len == 1
-  hgvs[snp_idx] <- paste0(
-    chromosome[snp_idx], ":g.", start[snp_idx], 
-    reference[snp_idx], ">", alternative[snp_idx]
-  )
+    # SNP: Single Nucleotide Polymorphism
+    snp_idx <- ref_len == 1 & alt_len == 1
+    hgvs[snp_idx] <- paste0(
+        chr[snp_idx],":g.",start[snp_idx], 
+        ref[snp_idx],">",alt[snp_idx]
+    )
   
-  # Pure Insertion: Empty reference, non-empty alternative
-  pure_insertion_idx <- ref_len == 0 & alt_len > 0
-  hgvs[pure_insertion_idx] <- paste0(
-    chromosome[pure_insertion_idx], ":g.", start[pure_insertion_idx] - 1, "_", 
-    start[pure_insertion_idx], "ins", alternative[pure_insertion_idx]
-  )
+    # Pure Insertion: Empty ref, non-empty alt
+    pure_insertion_idx <- ref_len == 0 & alt_len > 0
+    hgvs[pure_insertion_idx] <- paste0(
+        chr[pure_insertion_idx],":g.",start[pure_insertion_idx] - 1,"_",
+        start[pure_insertion_idx],"ins",alt[pure_insertion_idx]
+    )
   
-  # Pure Deletion: Non-empty reference, empty alternative
-  pure_deletion_idx <- ref_len > 0 & alt_len == 0
-  pure_deletion_end <- start[pure_deletion_idx] + ref_len[pure_deletion_idx] - 1
-  hgvs[pure_deletion_idx] <- paste0(
-    chromosome[pure_deletion_idx], ":g.", start[pure_deletion_idx], "_", 
-    pure_deletion_end, "del"#, reference[pure_deletion_idx]
-  )
+    # Pure Deletion: Non-empty ref, empty alt
+    pure_deletion_idx <- ref_len > 0 & alt_len == 0
+    pure_deletion_end <- start[pure_deletion_idx] + 
+        ref_len[pure_deletion_idx] - 1
+    hgvs[pure_deletion_idx] <- paste0(
+        chr[pure_deletion_idx],":g.",start[pure_deletion_idx], "_", 
+        pure_deletion_end,"del"#,ref[pure_deletion_idx]
+    )
   
-  # Insertion: Alternative allele is longer, starts with reference
-  insertion_idx <- alt_len > ref_len & 
-                   substr(alternative, 1, ref_len) == reference
-  hgvs[insertion_idx] <- paste0(
-    chromosome[insertion_idx], ":g.", start[insertion_idx], "_", 
-    start[insertion_idx] + ref_len[insertion_idx] - 1, "ins", 
-    substr(alternative[insertion_idx], ref_len[insertion_idx] + 1, alt_len[insertion_idx])
-  )
+    # Insertion: Alternative allele is longer, starts with ref
+    insertion_idx <- alt_len > ref_len & substr(alt,1,ref_len) == ref
+    hgvs[insertion_idx] <- paste0(
+        chr[insertion_idx],":g.",start[insertion_idx],"_",
+        start[insertion_idx] + ref_len[insertion_idx] - 1,"ins", 
+        substr(alt[insertion_idx],ref_len[insertion_idx] + 1,
+        alt_len[insertion_idx])
+    )
   
-  # Deletion: Reference allele is longer, starts with alternative
-  deletion_idx <- ref_len > alt_len & 
-                  substr(reference, 1, alt_len) == alternative
-  deletion_end <- start[deletion_idx] + ref_len[deletion_idx] - 1
-  hgvs[deletion_idx] <- paste0(
-    chromosome[deletion_idx], ":g.", start[deletion_idx], "_", 
-    deletion_end, "del"#, 
-    #substr(reference[deletion_idx], alt_len[deletion_idx] + 1, ref_len[deletion_idx])
-  )
+    # Deletion: Reference allele is longer, starts with alt
+    deletion_idx <- ref_len > alt_len & substr(ref, 1, alt_len) == alt
+    deletion_end <- start[deletion_idx] + ref_len[deletion_idx] - 1
+    hgvs[deletion_idx] <- paste0(
+        chr[deletion_idx],":g.",start[deletion_idx],"_", 
+        deletion_end,"del"#, 
+        #substr(ref[deletion_idx], alt_len[deletion_idx] + 1, ref_len[deletion_idx])
+    )
   
-  # MNV: Reference and alternative are of equal length (>1), and differ
-  mnv_idx <- ref_len > 1 & alt_len > 1 & ref_len == alt_len
-  mnv_end <- start[mnv_idx] + ref_len[mnv_idx] - 1
-  hgvs[mnv_idx] <- paste0(
-    chromosome[mnv_idx], ":g.", start[mnv_idx], "_", 
-    mnv_end, reference[mnv_idx], ">", alternative[mnv_idx]
-  )
+    # MNV: Reference and alt are of equal length (>1), and differ
+    mnv_idx <- ref_len > 1 & alt_len > 1 & ref_len == alt_len
+    mnv_end <- start[mnv_idx] + ref_len[mnv_idx] - 1
+    hgvs[mnv_idx] <- paste0(
+        chr[mnv_idx],":g.",start[mnv_idx],"_", 
+        mnv_end, ref[mnv_idx],">",alt[mnv_idx]
+    )
   
-  # Delins: Complex substitution (not covered by the above)
-  delins_idx <- !(snp_idx | pure_insertion_idx | pure_deletion_idx | insertion_idx | deletion_idx | mnv_idx)
-  delins_end <- start[delins_idx] + ref_len[delins_idx] - 1
-  hgvs[delins_idx] <- paste0(
-    chromosome[delins_idx], ":g.", start[delins_idx], "_", 
-    delins_end, "delins", alternative[delins_idx]
-  )
+    # Delins: Complex substitution (not covered by the above)
+    delins_idx <- !(snp_idx | pure_insertion_idx | pure_deletion_idx |  
+        insertion_idx | deletion_idx | mnv_idx)
+    delins_end <- start[delins_idx] + ref_len[delins_idx] - 1
+    hgvs[delins_idx] <- paste0(
+        chr[delins_idx],":g.",start[delins_idx], "_", 
+        delins_end,"delins",alt[delins_idx]
+    )
   
-  return(hgvs)
+    return(hgvs)
 }
+
+#~ .getCivicInfo <- function(map) {
+#~     # The usage of CiVIC v2 API (GraphQL) is difficult... It is easier to
+#~     # donwload monthly (like with ClinVar) files from CiVIC (genes, variants)
+#~     # and provide a link for review if necessary.
+#~     # 
+#~     # The idea is:
+#~     # 1. Create a map data.frame with:
+#~     #    - hgvs.p codes extracted from SnpEff annotation
+#~     #    - hgvs.g codes to be used for a resource data frame creation to be
+#~     #      used for herein internal annotation routines
+#~     #    - Gene names
+#~     # 2. Deduplicate this data frame so that we can safely assign hgvs.p codes
+#~     #    as row names.
+#~     # 3. Convert the hgvs.p codes to one-letter AA representation with the help
+#~     #    of ChatGPT function (may need further review).
+#~     # 4. Check if the one-letter AA exists in CiVIC variants files
+#~     # 5. If yes:
+#~     #    - Grab the link and add to the list of hits
+#~     #    - Grab the gene name and get its link from the genes file and add to 
+#~     #      the list of hits
+#~     # 6. Return the hits list
+#~     #
+#~     # CiVIC files should live with the rest of annotation files.
+#~ }
 
 .queryOncoKB <- function(hgvs,gv) {
     if (!requireNamespace("httr")) {
@@ -982,7 +1115,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
         # - mutationEffect$knownEffect
         # - treatments[[x]]$drugs$ncitCode
         # - treatments[[x]]$drugs$drugName
-        responseData <- httr::content(response,as="parsed",type="application/json")
+        responseData <- httr::content(response,as="parsed",
+            type="application/json")
         shrinked <- lapply(responseData,function(x) {
             list(
                 gene_symbol=x$query$hugoSymbol,
@@ -1044,3 +1178,39 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38")) {
     return(which(!grepl(exprs,terms)))
 }
 
+.analysis_logger <- function(analysisPath) {
+    # Analysis logger in database
+    logger_db_analysis <- 
+        suppressWarnings(layout_json(c("time","level","fn","user","msg")))
+    log_layout(logger_db_analysis,index=1)
+    log_appender(function(lines) {
+        con <- mongoConnect("logs")
+        logmsg <- fromJSON(lines)
+        S <- strsplit(logmsg$msg,"#USER:")
+        msg <- trimws(S[[1]][1])
+        usr <- trimws(S[[1]][2])
+        d <- list(
+            timestamp=unbox(as.POSIXct(logmsg$time,tz="EET")),
+            level=logmsg$level,
+            caller=logmsg$fn,
+            message=msg,
+            sys_uname=logmsg$user,
+            user_name=usr
+        )
+        d <- .toMongoJSON(d)
+        con$insert(d)
+        mongoDisconnect(con)
+    },index=1)
+    # More extensive analysis logger in file
+    logger_debug_analysis <- layout_glue_generator(
+        format='{level} [{format(time, \"%Y-%m-%d %H:%M:%S\")}] | {fn} | {msg}')
+    log_layout(logger_debug_analysis,index=2)
+    log_threshold(DEBUG,index=2)
+    logfile <- file.path(analysisPath,"analysis.log")
+    log_appender(appender_file(file=logfile),index=2)
+    ## Delete the loggers upon analysis finish - whatever happens
+    #on.exit({
+    #    delete_logger_index(index=2)
+    #    delete_logger_index(index=1)
+    #},add=TRUE)
+}

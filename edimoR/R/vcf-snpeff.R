@@ -1,6 +1,8 @@
 # It is assumed that the path where the vcfFile lives, is the path where all
 # analyses will run and files will be produced
-annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
+annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
+    log_info("Entering main VCF annotator")
+    
     if (!requireNamespace("VariantAnnotation")) {
         log_error("Bioconductor package VariantAnnotation is required!")
         stop("Bioconductor package VariantAnnotation is required!")
@@ -17,9 +19,13 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     
     gv <- gv[1]
     .checkTextArgs("Genome version",gv,c("hg19","hg38"),multiarg=FALSE)
+    nsteps <- .getNoAnalysisSteps("basic")
     
     # Working directory and base for outputs
     vcfDir <- dirname(vcfFile)
+    
+    #-1. Uncompress the vcf file as we nay do extensive modifications sometimes
+    vcfFile <- .bgunzip(vcfFile)
     
     # 0. Check chromosome names and rename if necessary
     seqStyle <- .guessGenomeStyle(vcfFile)
@@ -35,15 +41,23 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     
     # 2. Strip incoming VCF from unecessary fields for this app
     .strip(vcfDir)
+    # Analysis step 1 complete - update progress
+    .updateAnalysisProgress(aid,1,100*(1/nsteps),"VCF cleaned")
     
     # 3. Effect annotation with SnpEff
     .snpEff(vcfDir,gv)
+    # Analysis step 2 complete - update progress
+    .updateAnalysisProgress(aid,2,100*(2/nsteps),"Effects")
     
     # 4. SnpSift - Annotation with dbSNP
     .snpSiftDbSnp(vcfDir,gv)
+    # Analysis step 3 complete - update progress
+    .updateAnalysisProgress(aid,3,100*(3/nsteps),"dbSNP ids")
     
     # 5. SnpSift - Annotation with dbNSFP
     .snpSiftDbNsfp(vcfDir,gv)
+    # Analysis step 4 complete - update progress
+    .updateAnalysisProgress(aid,4,100*(4/nsteps),"Pathogenicities")
     
     # 6. SnpSift - Annotation with gnomAD exomes
     .snpSiftGnomadExomes(vcfDir,gv)
@@ -53,6 +67,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     
     # 8. SnpSift - Annotation with ClinVar and variant type
     .snpSiftClinvarVt(vcfDir,gv)
+    # Analysis step 5 complete - update progress
+    .updateAnalysisProgress(aid,5,100*(5/nsteps),"Populations")
     
     # Finally, create a copy of the last annotated file with a fixed name. This
     # allows adding further annotation steps later, e.g. ALFA.
@@ -64,11 +80,15 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     # ... and bgzip/tabix
     .bgzip(vcfDir)
     .tabix(vcfDir)
+    # Analysis step 6 complete - update progress
+    .updateAnalysisProgress(aid,6,100*(6/nsteps),"Indexing")
     
+    log_info("Exiting main VCF annotator")
     return(file.path(vcfDir,"annotated.vcf.gz"))
 }
 
 .chrRename <- function(vcfFile,gv) {
+    log_info("Entering chromosome name harmonizer")
     log_info("Renaming chromosomes from UCSC style to NCBI style in file ",
         vcfFile," for genome version ",gv)
     
@@ -81,25 +101,32 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     chrRenameFile <- .getStaticFile(gv,"rename_map")
     outVcf <- file.path(vcfDir,"00_chrom_rename.vcf")
     
-    # Construct human readbale command to display
-    humanCommand <- glue("
-    {bcftools} annotate \\\ 
-      --rename-chrs {chrRenameFile} \\\ 
-      --output {outVcf} \\\ 
-      {vcfFile}
-    ")
+    # Construct human readable command to display - we need sed for (*&(*&@#)
+    # older versions of IonReporter...
+    sed <- Sys.which("sed")
+    #humanCommand <- glue("
+    #sed 's/\\\\[{\\\\(.*\\\\)}\\\\]/./g' {vcfFile} | \\\
+    #{bcftools} annotate \\\ 
+    #  --rename-chrs {chrRenameFile} \\\ 
+    #  --output {outVcf}
+    #")
+    humanCommand <- paste(
+       paste0(sed," 's/\\[{\\(.*\\)}\\]/./g' \\"),
+       paste0("  ",vcfFile," | \\"),
+       paste0(bcftools," annotate \\"),
+       paste0("  --rename-chrs ",chrRenameFile," \\"),
+       paste0("  --output ",outVcf),
+       sep="\n"
+    )
     # The same args for system2 - quite verbose but we need logs
-    args <- c("annotate","--rename-chrs",chrRenameFile,"--output",outVcf,
-        vcfFile)
+    args <- c("'s/\\[{\\(.*\\)}\\]/./g'",vcfFile,"|",bcftools,
+        "annotate","--rename-chrs",chrRenameFile,"--output",outVcf)
     # Define log file
     logfile <- file.path(vcfDir,"00_chrom_rename.log")
     
-    # TODO: Somehow append humanCommand to the log file - ideally start with
-    # https://stackoverflow.com/questions/39273523/how-to-append-stderr-and-stdout-output-to-file-in-system2-r-command
-    
     message("Executing:\n",humanCommand)
     out <- tryCatch({
-        suppressWarnings(system2(bcftools,args=args,stdout=logfile,
+        suppressWarnings(system2(sed,args=args,stdout=logfile,
             stderr=logfile))
         TRUE
     },error=function(e) {
@@ -107,7 +134,11 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         return(FALSE)
     },finally="")
     
+    
+    log_info("Exiting chromosome name harmonizer")
     if (!out) {
+        cat(paste0("\nVCF chromosome renaming failed!\nThe command was:\n",
+            humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during VCF chromosome renaming.")
         msg2 <- paste0("The log is at ",logfile)
@@ -115,9 +146,17 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         log_error(msg2)
         stop(paste(msg1,msg2,collapse="\n"))
     }
+    else
+        cat(paste0("\nVCF chromosome renaming finished!\nThe command was:\n",
+            humanCommand),file=logfile,append=TRUE)
 }
 
+# TODO: Attach sed -i s/\#\#FORMAT\=\<ID\=AD\,Number\=\./\#\#FORMAT\=\<ID\=AD\,Number\=\R/ 000_chrom_rename.vcf
+# to ensure that multi-allelic AD will be split
+# In the end of the process we need to keep only canonical chrs on header
+# grep -P "^##contig\=\<ID\=(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)" 67hdg.hard-filtered_stripped.vcf
 .normalize <- function(vcfDir,gv) {
+    log_info("Entering VCF variant normalizer")
     log_info("Normalizing file ",file.path(vcfDir,"00_chrom_rename.vcf"),
         ", refefence genome version is ",gv)
 
@@ -131,30 +170,49 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     outVcf <- file.path(vcfDir,"01_normalize.vcf")
     
     # Construct human readbale command to display
-    humanCommand <- glue("
-    {bcftools} norm \\\ 
-      --multiallelics -any \\\ 
-      --fasta-ref {genomeReference} \\\ 
-      --output-type v \\\ 
-      --output {outVcf} \\\ 
-      {inVcf}
-    ")
+    sed <- Sys.which("sed")
+    #humanCommand <- glue("
+    #{bcftools} norm \\\ 
+    #  --multiallelics -any \\\ 
+    #  --fasta-ref {genomeReference} \\\ 
+    #  --output-type v \\\ 
+    #  --output {outVcf} \\\ 
+    #  {inVcf}
+    #")
+    humanCommand <- paste(
+        paste0(sed," s/\\#\\#FORMAT\\=\\<ID\\=AD\\,Number\\=\\.",
+            "/\\#\\#FORMAT\\=\\<ID\\=AD\\,Number\\=\\R/ \\"),
+        paste0("  ",inVcf," | \\"),
+        paste0(bcftools," norm \\"),
+        "  --multiallelics -any \\",
+        paste0("  --fasta-ref ",genomeReference," \\"),
+        "  --check-ref w \\",
+        "  --output-type v \\",
+        paste0("  --output ",outVcf),
+        sep="\n"
+    )
     # The same args for system2 - quite verbose but we need logs
-    args <- c("norm","--multiallelics","-any","--fasta-ref",genomeReference,
-        "--output-type","v","--output",outVcf,inVcf)
+    args <- c(paste0(" s/\\#\\#FORMAT\\=\\<ID\\=AD\\,Number\\=\\.",
+        "/\\#\\#FORMAT\\=\\<ID\\=AD\\,Number\\=\\R/"),inVcf,"|",bcftools,
+        "norm","--multiallelics","-any","--fasta-ref",genomeReference,
+        "--check-ref","w","--output-type","v","--output",outVcf)
     # Define log file
     logfile <- file.path(vcfDir,"01_normalize.log")
     
     message("Executing:\n",humanCommand)
     out <- tryCatch({
-        suppressWarnings(system2(bcftools,args=args,stdout=logfile,
+        suppressWarnings(system2(sed,args=args,stdout=logfile,
             stderr=logfile))
         TRUE
     },error=function(e) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF variant normalizer")
     if (!out) {
+        cat(paste0("\nVCF normalization failed!\nThe command was:\n",
+            humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during VCF normalization.")
         msg2 <- paste0("The log is at ",logfile)
@@ -162,9 +220,13 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         log_error(msg2)
         stop(paste(msg1,msg2,collapse="\n"))
     }
+    else
+        cat(paste0("\nVCF normalization finished!\nThe command was:\n",
+            humanCommand),file=logfile,append=TRUE)
 }
 
 .strip <- function(vcfDir) {
+    log_info("Entering VCF file stripper and harmonizer")
     log_info("Harmonizing file ",file.path(vcfDir,"01_normalize.vcf"))
 
     out <- tryCatch({
@@ -180,6 +242,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file stripper and harmonizer")
     if (!out) {
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during VCF harmonization.")
@@ -189,6 +253,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
 }
 
 .snpEff <- function(vcfDir,gv) {
+    log_info("Entering VCF file annotator - genomic elements and effects")
     log_info("Annotating effect in file ",file.path(vcfDir,"02_stripped.vcf"),
         ", genome version is ",gv)
 
@@ -231,7 +296,11 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file annotator - genomic elements and effects")
     if (!out) {
+        cat(paste0("\nVCF SnpEff annotation failed!\nThe command was:\n",
+            humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff annotation.")
         msg2 <- paste0("The log is at ",logfile)
@@ -239,9 +308,12 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         log_error(msg2)
         stop(paste(msg1,msg2,collapse="\n"))
     }
+    cat(paste0("\nSnpEff annotation complete!\nThe command was:\n",
+            humanCommand),file=logfile,append=TRUE)
 }
 
 .snpSiftDbSnp <- function(vcfDir,gv) {
+    log_info("Entering VCF file annotator - dbSNP")
     log_info("Annotating file ",file.path(vcfDir,"03_snpeff.vcf"),
         " with dbSNP, genome version is ",gv)
 
@@ -278,7 +350,11 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file annotator - dbSNP")
     if (!out) {
+        cat(paste0("\nVCF SnpSift dbSNP annotation failed!\nThe command was:\n",
+            humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff dbSNP annotation.")
         msg2 <- paste0("The log is at ",logfile)
@@ -286,9 +362,13 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         log_error(msg2)
         stop(paste(msg1,msg2,collapse="\n"))
     }
+    else
+        cat(paste0("\nVCF SnpSift dbSNP annotation finished!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
 .snpSiftDbNsfp <- function(vcfDir,gv) {
+    log_info("Entering VCF file annotator - dbNSFP")
     log_info("Annotating file ",file.path(vcfDir,"04_dbsnp.vcf"),
         " with dbNSFP, genome version is ",gv)
     
@@ -327,7 +407,11 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file annotator - dbNSFP")
     if (!out) {
+        cat(paste0("\nVCF SnpSift dbNSFP annotation failed!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff dbNSFP annotation.")
         msg2 <- paste0("The log is at ",logfile)
@@ -335,9 +419,13 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         log_error(msg2)
         stop(paste(msg1,msg2,collapse="\n"))
     }
+    else
+        cat(paste0("\nVCF SnpSift dbNSFP annotation finished!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
 .snpSiftGnomadExomes <- function(vcfDir,gv) {
+    log_info("Entering VCF file annotator - gnomAD exomes")
     log_info("Annotating file ",file.path(vcfDir,"05_dbnsfp.vcf"),
         " with gnomAD exomes, genome version is ",gv)
 
@@ -378,7 +466,11 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file annotator - gnomAD exomes")
     if (!out) {
+        cat(paste0("\nVCF SnpSift gnomAD exomes annotation failed!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff gnomAD exomes annotation.")
         msg2 <- paste0("The log is at ",logfile)
@@ -386,9 +478,13 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         log_error(msg2)
         stop(paste(msg1,msg2,collapse="\n"))
     }
+    else
+        cat(paste0("\nVCF SnpSift gnomAD exomes annotation finished!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
 .snpSiftGnomadGenomes <- function(vcfDir,gv) {
+    log_info("Entering VCF file annotator - gnomAD genomes")
     log_info("Annotating file ",file.path(vcfDir,"06_gnomad_exomes.vcf"),
         " with gnomAD genomes, genome version is ",gv)
 
@@ -429,7 +525,11 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file annotator - gnomAD genomes")
     if (!out) {
+        cat(paste0("\nVCF SnpSift gnomAD genomes annotation finished!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff gnomAD exomes annotation.")
         msg2 <- paste0("The log is at ",logfile)
@@ -437,9 +537,13 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         log_error(msg2)
         stop(paste(msg1,msg2,collapse="\n"))
     }
+    else
+        cat(paste0("\nVCF SnpSift gnomAD genomes annotation failed!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
 .snpSiftClinvarVt <- function(vcfDir,gv) {
+    log_info("Entering VCF file annotator - ClinVar and variant type")
     log_info("Annotating file ",file.path(vcfDir,"06_gnomad_genomes.vcf"),
         " with ClinVar, genome version is ",gv)
 
@@ -480,7 +584,11 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file annotator - ClinVar and variant type")
     if (!out) {
+        cat(paste0("\nVCF SnpSift ClinVar annotation finished!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff ClinVar annotation.")
         msg2 <- paste0("The log is at ",logfile)
@@ -488,9 +596,13 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         log_error(msg2)
         stop(paste(msg1,msg2,collapse="\n"))
     }
+    else
+        cat(paste0("\nVCF SnpSift ClinVar annotation failed!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
 .bgzip <- function(vcfDir) {
+    log_info("Entering VCF file compressor")
     log_info("Compressing file ",file.path(vcfDir,"annotated.vcf"),
         " with bgzip")
 
@@ -502,8 +614,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     inVcf <- file.path(vcfDir,"annotated.vcf")
     
     # Construct human readbale command to display
-    humanCommand <- glue("{bgzip} {inVcf}")
-    args <- inVcf
+    humanCommand <- glue("{bgzip} --force {inVcf}")
+    args <- c("--force",inVcf)
     
     message("Executing:\n",humanCommand)
     out <- tryCatch({
@@ -513,6 +625,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file compressor")
     if (!out) {
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during compressing the final VCF.")
@@ -522,7 +636,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
 }
 
 .tabix <- function(vcfDir) {
-    log_info("Indexing file ",file.path(vcfDir,"annotated.vcf,gz"),
+    log_info("Entering VCF file indexer")
+    log_info("Indexing file ",file.path(vcfDir,"annotated.vcf.gz"),
         " with tabix")
 
     out <- FALSE
@@ -533,8 +648,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
     inVcf <- file.path(vcfDir,"annotated.vcf.gz")
     
     # Construct human readbale command to display
-    humanCommand <- glue("{tabix} {inVcf}")
-    args <- inVcf
+    humanCommand <- glue("{tabix} --force {inVcf}")
+    args <- c("--force",inVcf)
     
     message("Executing:\n",humanCommand)
     out <- tryCatch({
@@ -544,12 +659,55 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38")) {
         message("Caught error: ",e$message)
         return(FALSE)
     },finally="")
+    
+    log_info("Exiting VCF file indexer")
     if (!out) {
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during indexing the final VCF.")
         log_error(msg1)
         stop(msg1)
     }
+}
+
+.bgunzip <- function(vcfFile) {
+    log_info("Entering VCF file decompressor")
+    
+    compression <- grepl("[.](gz|bz2|xz)$",vcfFile)
+    if (!compression) {
+        log_info("VCF file ",vcfFile," is not compressed, nothing to do")
+        log_info("Exiting VCF file compressor")
+        return(vcfFile)
+    }
+    
+    log_info("Decompressing file ",vcfFile," with bgzip")
+    
+    out <- FALSE
+    # Necessary tools
+    bgzipData <- .getTool("bgzip")
+    bgzip <- bgzipData$command
+    
+    # Construct human readbale command to display
+    humanCommand <- glue("{bgzip} --force --decompress {vcfFile}")
+    args <- c("--force","--decompress",inVcf)
+    
+    message("Executing:\n",humanCommand)
+    out <- tryCatch({
+        suppressWarnings(system2(bgzip,args=args))
+        TRUE
+    },error=function(e) {
+        message("Caught error: ",e$message)
+        return(FALSE)
+    },finally="")
+    
+    log_info("Exiting VCF file compressor")
+    if (!out) {
+        msg1 <- paste0("VCF file annotation failed! The error most likely ",
+            "occured during decompressing the original VCF.")
+        log_error(msg1)
+        stop(msg1)
+    }
+    
+    return(sub("[.](gz|bz2|xz)$","",vcfFile))
 }
 
 checkVcf <- function(vcfFile) {
@@ -607,6 +765,17 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
     vcf <- readVcf(vcfFile)
     
     message("Stripping extra fields and harmonizing")
+    # Firstly keep standard chromomosomes, as problems may arise later
+    # Remove from seqlevels/seqinfo
+    cind <- grep("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",seqlevels(vcf),perl=TRUE)
+    seqlevels(vcf) <- seqlevels(vcf)[cind]
+    # Remove from vcf object header metadata, otherwise written in output
+    mind <- grep("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",rownames(meta(header(vcf))$contig),perl=TRUE)
+    meta(header(vcf))$contig <- meta(header(vcf))$contig[mind,,drop=FALSE]
+    # Remove from actual variants - if any
+    citf <- grepl("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",seqnames(vcf),perl=TRUE)
+    vcf <- vcf[as.logical(citf)]
+    
     # Harmonize strand bias - add a common header
     info(VariantAnnotation::header(vcf))["SBP", ] <- infoHeaders[["SBP"]]
     # Possible strand bias fields are FS, SBP and STBP
@@ -627,13 +796,47 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
             info(vcf)[[field]] <- rep(".",length(vcf))
         }
     }
-    # TODO: If AC or AO is NA, then AC=AO or AO=AC
-    # Harmonize FORMAT fields
+    
+    # Harmonize FORMAT fields - add to checkVcf some of the fields below
     for (field in genoFields) {
         if (!(field %in% rownames(geno(VariantAnnotation::header(vcf))))) {
-            geno(VariantAnnotation::header(vcf))[field, ] <- 
+            geno(VariantAnnotation::header(vcf))[field,] <- 
                 genoHeaders[[field]]
-            geno(vcf)[[field]] <- as.matrix(rep(".", length(vcf)))
+            
+            # Examine different cases, more may be added
+            if (field == "AF") {
+                # Case 1 - Illumina files w/o AF
+                DP <- geno(vcf)[["DP"]][,1]
+                if ("AD" %in% names(geno(vcf))) { # Illumina/GATK flavor
+                    AD <- do.call("rbind",geno(vcf)[["AD"]][,1])
+                    AF <- round(AD[,2]/DP,5)
+                }
+                # Case 2 - Thermo/FreeBayes files w/o AF    
+                else if ("AO" %in% names(geno(vcf))) { # Thermo/FreeBayes flavor
+                    AO <- geno(vcf)[["AO"]][,1]
+                    AF <- round(AO/DP,5)
+                }
+                geno(vcf)[["AF"]] <- as.matrix(AF)
+            }
+            else if (field == "AD") { # It should be having AO
+                DP <- geno(vcf)[["DP"]][,1]
+                if ("AO" %in% names(geno(vcf))) {
+                    AO <- geno(vcf)[["AO"]][,1]
+                    # Need to create a character list of 2 as AD
+                    AD <- lapply(seq_along(AO),function(i,ao,dp) {
+                        y <- numeric(2)
+                        y[1] <- dp[i] - ao[[i]][1] # Ref
+                        y[2] <- ao[[i]][1]         # Alt
+                        return(y)
+                    },AO,DP)
+                    names(AD) <- names(AO)
+                    geno(vcf)[["AD"]] <- as.matrix(AD)
+                }
+                else
+                    stop("Cannot extract harmonization information!")
+            }
+            else
+                geno(vcf)[[field]] <- as.matrix(rep(".", length(vcf)))
         }
     }
     
@@ -668,7 +871,7 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
 }
 
 .getDefaultGenoFields <- function() {
-    return(c("GT","DP","GQ","SB"))
+    return(c("GT","DP","AD","AF","GQ","SB"))
 }
 
 .getDefaultInfoHeaders <- function() {
@@ -693,6 +896,9 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
     return(list(
         GT=list("1","String","Genotype"),
         DP=list("1","Integer","Read Depth"),
+        AD=list("R","Integer",paste0("Allelic depths for the ref and alt ",
+            "alleles in the order listed")),
+        AF=list("A","Float","Allele frequency for sample"),
         GQ=list("1","Integer",paste0("Genotype Quality, the Phred-scaled ",
             "marginal (or unconditional) probability of the called genotype")),
         SB=list("1","Float","Strand Bias")
