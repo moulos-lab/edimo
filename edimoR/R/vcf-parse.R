@@ -372,7 +372,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
 
             message("  PharmGKB")
             pharmgkbHits <- .findPharmGkbByVariant(vcfVariants)
-            message("    Retrieved ",nrow(pharmgkbHits)," hits")
+            message("    Retrieved ",length(pharmgkbHits)," hits")
             
             message(" OncoKB")
             allSoTerms <- unname(sapply(annList,function(x) {
@@ -386,10 +386,15 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
                 function(x) is.null(x$gene_symbol) || x$oncogenic=="Unknown")]
             message("    Retrieved ",length(oncokbHits)," hits")
             
+            message("  CiVIC")
+            civicHits <- .findCivicByOneLetterAA(fixed,annList,gv)
+            message("    Retrieved ",nrow(civicHits)," hits")
+            
             return(list(
                 disgenet=disgenetVariantHits,
                 pharmgkb=pharmgkbHits,
-                oncokb=oncokbHits
+                oncokb=oncokbHits,
+                civic=civicHits
             ))
         },
         somatic = {},
@@ -847,6 +852,54 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     return(NULL)
 }
 
+.findCivicByOneLetterAA <- function(fixed,annList,gv) {
+    # Prepare map for CiVIC files
+    map <- data.frame(
+        hgvsg=fixed$hgvsg,
+        hgvsp=sapply(annList,function(x) {
+            x[1,"hgvs_p"]
+        }),
+        genes=sapply(annList,function(x) {
+            x[1,"gene_name"]
+        })
+    )
+    
+    # Remove variants with no protein impacts
+    map <- map[map$hgvsp!="",,drop=FALSE]
+    map <- map[!duplicated(map),,drop=FALSE]
+    
+    # Continue if map still has rows
+    if (nrow(map) > 0) {
+        # Convert to 1-AA and assign rownames
+        map$oneaa <- .makeOneLetterHgvsp(map$hgvsp)
+        rownames(map) <- map$oneaa
+        # Read CiVIC files
+        cVars <- read.delim(.getStaticFile(gv,"civic_variants"))
+        cGens <- read.delim(.getStaticFile(gv,"civic_genes"))
+        # Match
+        if (any(cVars$variant %in% map$oneaa)) {
+            # 1. Get variant info, id and gene name
+            varInd <- which(cVars$variant %in% map$oneaa)
+            hits <- data.frame(
+                id=cVars$variant_id[varInd],
+                variant=cVars$variant[varInd],
+                gene=cVars$feature_name[varInd]
+            )
+            # 2. Add gene info
+            genInd <- match(hits$gene,cGens$name)
+            hits$gene_id <- cGens$gene_id[genInd]
+            # 3. Add hgvsg rownames
+            hits$hgvsg <- map[hits$variant,"hgvsg"]
+            rownames(hits) <- hits$hgvsg
+            return(hits)
+        }
+        else
+            return(NULL)
+    }
+    else
+        return(NULL)
+}
+
 .findDisgenetByGene <- function(genes,ver="7.0") {
     con <- mongoConnect("disgenet_gene","back")
     on.exit(mongoDisconnect(con))
@@ -1055,6 +1108,95 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     return(hgvs)
 }
 
+.makeOneLetterHgvsp <- function(hgvs) {
+    aaMap <- .AAmap()
+    #aaRegex <- paste0("\\b(",paste(names(aaMap),collapse="|"),")\\b")
+    hgvs <- sub("^p\\.","",hgvs)
+    for (aa in names(aaMap))
+        hgvs <- gsub(aa,aaMap[aa],hgvs)
+    return(toupper(hgvs))
+}
+
+#.makeOneLetterHgvsp <- function(hgvs) {
+#    # Define a mapping of 3-letter amino acid codes to 1-letter codes
+#    aamap <- .AAmap()
+#  
+#    # Helper function to convert amino acid codes from 3-letter to 1-letter
+#    ..convertAA <- function(aa) {
+#        if (aa %in% names(aamap))
+#            return(aamap[aa])
+#        else
+#            return(aa) # Return unmodified if not an amino acid
+#    }
+#  
+#    # Helper function to split a sequence into 3-letter chunks and convert to 
+#    # 1-letter
+#    ..convertSeq <- function(sequence) {
+#        # Split the input sequence into chunks of 3 characters
+#        split_codes <- substring(sequence,seq(1,nchar(sequence),by=3),
+#            seq(3,nchar(sequence)+2,by=3))
+#        # Convert each 3-letter code to its 1-letter equivalent
+#        converted <- sapply(split_codes, ..convertAA)
+#        return(paste0(converted,collapse=""))
+#    }
+#  
+#    # Function to process each HGVS string
+#    ..convertSingle <- function(hgvs_string) {
+#        # Match patterns and apply transformations
+#        if (grepl("^p\\.([A-Za-z]{3})([0-9]+)([A-Za-z]{3})$",hgvs_string)) {
+#            parts <- regmatches(hgvs_string,
+#                regexec("^p\\.([A-Za-z]{3})([0-9]+)([A-Za-z]{3})$",
+#                hgvs_string))[[1]]
+#            return(paste0(..convertAA(parts[2]),parts[3],
+#                ..convertAA(parts[4])))
+#        }
+#    
+#        if (grepl("^p\\.([A-Za-z]{3})([0-9]+)fs$",hgvs_string)) {
+#            parts <- regmatches(hgvs_string,
+#                regexec("^p\\.([A-Za-z]{3})([0-9]+)fs$",hgvs_string))[[1]]
+#            return(paste0(..convertAA(parts[2]),parts[3],"fs"))
+#        }
+#    
+#        if (grepl("^p\\.([A-Za-z]{3})([0-9]+)ins([A-Za-z]+)$",hgvs_string)) {
+#            parts <- regmatches(hgvs_string, regexec(
+#                "^p\\.([A-Za-z]{3})([0-9]+)ins([A-Za-z]+)$",hgvs_string))[[1]]
+#            return(paste0(..convertAA(parts[2]),parts[3],"ins",
+#                ..convertSeq(parts[4])))
+#        }
+#    
+#        if (grepl("^p\\.([A-Za-z]{3})([0-9]+)del$",hgvs_string)) {
+#            parts <- regmatches(hgvs_string,
+#                regexec("^p\\.([A-Za-z]{3})([0-9]+)del$",hgvs_string))[[1]]
+#            return(paste0(..convertAA(parts[2]),parts[3],"del"))
+#        }
+#    
+#        if (grepl("^p\\.([A-Za-z]{3})([0-9]+)_([A-Za-z]{3})([0-9]+)dup$",
+#            hgvs_string)) {
+#            parts <- regmatches(hgvs_string,
+#                regexec("^p\\.([A-Za-z]{3})([0-9]+)_([A-Za-z]{3})([0-9]+)dup$", 
+#                hgvs_string))[[1]]
+#            return(paste0(..convertAA(parts[2]),parts[3],"_",
+#                ..convertAA(parts[4]),parts[5],"dup"))
+#        }
+#        
+#        if (grepl(paste0("^p\\.([A-Za-z]{3})([0-9]+)_([A-Za-z]{3})([0-9]+)",
+#            "delins([A-Za-z]+)$"),hgvs_string)) {
+#            parts <- regmatches(hgvs_string,regexec(paste0(     
+#                "^p\\.([A-Za-z]{3})([0-9]+)_([A-Za-z]{3})([0-9]+)",
+#                "delins([A-Za-z]+)$"),hgvs_string))[[1]]
+#            return(paste0(..convertAA(parts[2]),parts[3],"_",
+#                ..convertAA(parts[4]),parts[5],"delins",..convertSeq(parts[6])))
+#        }
+#    
+#        # If no match, return the input unchanged
+#        return(hgvs_string)
+#    }
+#  
+#    # Apply the conversion to each HGVS string
+#    return(sapply(hgvs,..convertSingle,USE.NAMES=FALSE))
+#}
+
+
 #~ .getCivicInfo <- function(map) {
 #~     # The usage of CiVIC v2 API (GraphQL) is difficult... It is easier to
 #~     # donwload monthly (like with ClinVar) files from CiVIC (genes, variants)
@@ -1176,6 +1318,14 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     )
     exprs <- paste(paste("\\b",excluded,"\\b",sep=""),collapse="|")
     return(which(!grepl(exprs,terms)))
+}
+
+.AAmap <- function() {
+    return(c(
+        Ala="A",Arg="R",Asn="N",Asp="D",Cys="C",Gln="Q",Glu="E",Gly="G",His="H",
+        Ile="I",Leu="L",Lys="K",Met="M",Phe="F",Pro="P",Ser="S",Thr="T",Trp="W",
+        Tyr="Y",Val="V",Sec="U",Pyl="O",Ter="*",Xaa="X",Ter="*"
+    ))
 }
 
 .analysis_logger <- function(analysisPath) {

@@ -26,7 +26,12 @@ schedule <- function(q,fun,args,type="PROCESS",code=.randomString(1,16),
     if (is.null(title))
         title <- paste0("Process_",format(Sys.time(),"%Y-%m-%d-%H-%M-%S"))
     
-    log_debug("Scheduling ",type," job ",code)
+    # .queue_logger() must be called every time to ensure writing in the queues
+    # log as the framework is not very robust with futures...
+    .queue_logger()
+    log_debug("Scheduling job of type ",type," with code ",code,
+        " for analysis ",args$aid)
+    
     msg <- list(
         timestamp=Sys.time(),
         code=code,
@@ -37,15 +42,6 @@ schedule <- function(q,fun,args,type="PROCESS",code=.randomString(1,16),
     
     publish(q,title=title,message=toJSON(msg,null="null",auto_unbox=TRUE))
     return(TRUE)
-}
-
-.queue_logger <- function() {
-    logger_debug_queue <- layout_glue_generator(
-        format='{level} [{format(time, \"%Y-%m-%d %H:%M:%S\")}] | {fn} | {msg}')
-    log_layout(logger_debug_queue,index=1)
-    log_threshold(DEBUG,index=1)
-    logfile <- file.path(file.path(.getAppWorkspace(),"queue","queue.log"))
-    log_appender(appender_file(file=logfile),index=1)
 }
 
 execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
@@ -68,14 +64,16 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
     code <- contents$code
     jobtype <- contents$type
     
-    log_debug("Executing ",jobtype," job ",code)
-    
+    .queue_logger()
+    log_debug("Executing job of type ",jobtype," with code ",code,
+        " for analysis ",args$aid)
     .updateAnalysisJobId(args$aid,code)
     
     wait <- future_promise({
         # We define a log for queues
         .queue_logger()
-        log_info("Job with code ",code," entered waiting state")
+        log_info("Job of type ",jobtype," with code ",code," for analysis ",
+            args$aid," entered waiting state")
         
         withTimeout({
             waitq(q=q,N=N,ms=ms)
@@ -85,15 +83,12 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
 
     promise <- future_promise({
         .queue_logger()
+        log_info("Job of type ",jobtype," with code ",code," for analysis ",
+            args$aid," entered execution state")
         
-        print(jobtype)
-        print(tmout)
-        
-        log_info("Job with code ",code," entered execution state")
         withTimeout({
             switch(jobtype,
                 VARIANT_ANNOTATION = {
-                    print("Launching execution")
                     annotateAndInsertVariants(aid=args$aid)
                 }
             )
@@ -108,11 +103,13 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
                     promise %>%
                         then(onFulfilled=function(value) {
                             # Mark success
+                            .queue_logger()
                             log_info("Job of type ",jobtype," with code ",
                                 code," completed!")
                             # Acknowledge to the queue
                             ack(msg)
                         },onRejected=function(err) {
+                            .queue_logger()
                             if (is(err,"TimeoutException")) {
                                 m <- paste0("Process timeout after ",tmout,
                                     "ms!")
@@ -128,6 +125,7 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
                         })
             },
             onRejected=function(err) {
+                .queue_logger()
                 if (is(err,"TimeoutException")) {
                     m <- paste0("Process timeout after ",tmout,"ms!")
                     log_error("Job of type ",jobtype," with code ",code,
@@ -140,4 +138,13 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
                 nack(msg)
             }
         )
+}
+
+.queue_logger <- function() {
+    logger_debug_queue <- layout_glue_generator(
+        format='{level} [{format(time, \"%Y-%m-%d %H:%M:%S\")}] | {fn} | {msg}')
+    log_layout(logger_debug_queue,index=1)
+    log_threshold(DEBUG,index=1)
+    logfile <- file.path(file.path(.getAppWorkspace(),"queue","queue.log"))
+    log_appender(appender_file(file=logfile),index=1)
 }
