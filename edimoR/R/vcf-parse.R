@@ -1,6 +1,5 @@
-#annotateAndInsertVariants("6751d3d556bbcd63da4958df")
-#annotateAndInsertVariants("6753145356bbcd63da4958e0")
-#annotateAndInsertVariants("6759ac2756bbcd63da4958e3")
+#annotateAndInsertVariants("6780e4e856bbcd63da4958f0")
+#annotateAndInsertVariants("6780f37d56bbcd63da4958f3")
 annotateAndInsertVariants <- function(aid) {
     # Get VCF file and genome from analysisId
     # Open the VCF file in chunks of X variants
@@ -138,9 +137,31 @@ annotateAndInsertVariants <- function(aid) {
                 #    "inserted for analysis ",aid,". Contact admins.")
                 log_warn("Only ",ins$nInserted," variants successfully ",
                     "inserted for analysis ",aid,". Contact admins.")
+            
+            # And calculate several stats for graphs and filters
+            log_info("Calculating analysis statistics for analysis ",aid)
+            upd <- tryCatch({
+                updateAnalysisStats(aid)
+            },error=function(e) {
+                log_error("Statistics calculation for analysis ",aid," failed!",
+                    e$messsage)
+                return(NULL)
+            })
+            
+            if (!is.null(upd) && is(upd,"miniprint")) {
+                if (upd$modifiedCount == 1)
+                    log_info("Statistics calculation for analysis ",aid,
+                        " successful!")
+                else
+                    log_info("Statistics insert for analysis ",aid," failed! ",
+                        "Contact admins.")
+            }
         }
         # Analysis step 8 complete - update progress
         .updateAnalysisProgress(aid,8,100*(8/nsteps),"Complete")
+        .markAnalysisSuccessfull(aid)
+        
+        # Next, we calculate variant calling stats with aggregations
     }
     else {
         .updateAnalysisProgress(aid,8,100*(8/nsteps),"Failed")
@@ -180,11 +201,11 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     #log_info("Reading VCF file ",vcfFile)
     message("Reading VCF file ",vcfFile)
     nl <- R.utils::countLines(vcfFile)
-    #log_info("Input VCF file contains around ",nl," variants")
-    message("Input VCF file contains around ",nl," variants")
+    log_info("Input VCF file contains around ",nl," variants")
+    #message("Input VCF file contains around ",nl," variants")
     if (nl > .getVcfReadChunkSize()) {
-        #log_info("I will annotate in chunks of ",chunkSize," variants")
-        message("I will annotate in chunks of ",chunkSize," variants")
+        log_info("I will annotate in chunks of ",chunkSize," variants")
+        #message("I will annotate in chunks of ",chunkSize," variants")
         chunkNo <- 0
         varsList <- list()
         vcfCon <- VcfFile(vcfFile,yieldSize=chunkSize)
@@ -194,8 +215,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             vcf <- suppressWarnings(readVcf(vcfCon))
             if (length(vcf) == 0)
                 break
-            #log_info("Annotating chunk ",chunkNo)
-            message("Annotating chunk ",chunkNo)
+            log_info("Annotating chunk ",chunkNo)
+            #message("Annotating chunk ",chunkNo)
             nucleoGenos <- readGT(vcfCon,nucleotides=TRUE)
             varsList[[chunkSize]] <- .vcfToListWorker(vcf,nucleoGenos,gv,aType)
         }
@@ -217,8 +238,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     # for a single variant in the database. With the building block below, we
     # build the initial document list which will later be enriched from entries
     # from our knowledge base and API calls.
-    #log_info("Building variant document blocks")
-    message("Building variant document blocks")
+    log_info("Building variant document blocks")
+    #message("Building variant document blocks")
     
     # dbSNP id arrays
     rsids <- .parseID(names(vcf))
@@ -284,8 +305,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     
     # Get all genes present in VCF to construct hashes of hits in backend
     # collections such as disgenet, hpo etc.
-    #log_info("Retrieving annotation elements from knowledge base")
-    message("Retrieving annotation elements from knowledge base")
+    log_info("Retrieving annotation elements from knowledge base")
+    #message("Retrieving annotation elements from knowledge base")
     vcfVariants <- unlist(rsids)
     vcfVariants <- vcfVariants[grepl("^rs",vcfVariants)]
     vcfGenes <- unique(unlist(lapply(annList,function(x) x[,"gene_name"])))
@@ -293,7 +314,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     geneResource <- .makeGeneResource(aType,vcfGenes)
     variantResource <- .makeVariantResource(aType,vcfVariants,annList,fixed,gv)
     
-    message("Building variant documents")
+    log_info("Building variant documents")
+    #message("Building variant documents")
     # Ultimately this may end very large... Maybe we could process it in chunks
     # and insert in chunks... Like tabix the VCF and use open and yield with
     # this function... This would also reduce the burden on API calls...
@@ -314,42 +336,45 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             )
         )
     })
-    message("Done!")
+    log_info("Done!")
+    #message("Done!")
     return(docs)
 }
 
 .makeGeneResource <- function(aType,vcfGenes) {
     switch(aType,
         generic = {
-            #log_info("  DisGeNET for genes")
-            message("  DisGeNET for genes")
+            log_info("DisGeNET for genes")
+            #message("  DisGeNET for genes")
             disgenetGeneHits <- .findDisgenetByGene(vcfGenes)
-            #log_info("    Retrieved ",nrow(disgenetGeneHits)," hits")
-            message("    Retrieved ",nrow(disgenetGeneHits)," hits")
+            log_info("Retrieved ",nrow(disgenetGeneHits)," hits")
+            #message("    Retrieved ",nrow(disgenetGeneHits)," hits")
             
-            #log_info("  Human Phenotype Ontology")
-            message("  Human Phenotype Ontology")
+            log_info("Human Phenotype Ontology")
+            #message("  Human Phenotype Ontology")
             hpoHits <- .findHpoByGene(vcfGenes)
-            #log_info("    Retrieved ",length(hpoHits)," hits")
-            message("    Retrieved ",length(hpoHits)," hits")
+            log_info("Retrieved ",length(hpoHits)," hits")
+            #message("    Retrieved ",length(hpoHits)," hits")
             
-            #log_info("  Comparative Toxicogenomics Database")
-            message("  Comparative Toxicogenomics Database")
+            log_info("Comparative Toxicogenomics Database")
+            #message("  Comparative Toxicogenomics Database")
             ctdHits <- .findCtdByGene(vcfGenes)
-            #log_info("    Retrieved ",length(ctdHits)," hits")
-            message("    Retrieved ",length(ctdHits)," hits")
+            log_info("Retrieved ",length(ctdHits)," hits")
+            #message("    Retrieved ",length(ctdHits)," hits")
             
-            #log_info("  Clinical Genomics Database")
-            message("  Clinical Genomics Database")
+            log_info("Clinical Genomics Database")
+            #message("  Clinical Genomics Database")
             cgdHits <- .findCgdInheritanceByGene(vcfGenes)
-            #log_info("    Retrieved ",nrow(cgdHits)," hits")
-            message("    Retrieved ",nrow(cgdHits)," hits")
+            log_info("Retrieved ",nrow(cgdHits)," hits")
+            #message("    Retrieved ",nrow(cgdHits)," hits")
             
+            # Silently also add SO localizations
             return(list(
                 disgenet=disgenetGeneHits,
                 hpo=hpoHits,
                 ctd=ctdHits,
-                cgd=cgdHits
+                cgd=cgdHits,
+                sol=read.delim(.getStaticFile("hg19","so_localizations"))
             ))
         },
         somatic = {},
@@ -360,21 +385,26 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
 .makeVariantResource <- function(aType,vcfVariants,annList,fixed,gv) {
     switch(aType,
         generic = {
-            #log_info("  DisGeNET for variants")
-            message("  DisGeNET for variants")
+            log_info("DisGeNET for variants")
+            #message("  DisGeNET for variants")
             disgenetVariantHits <- .findDisgenetByVariant(vcfVariants)
-            #log_info("    Retrieved ",nrow(disgenetVariantHits)," hits")
-            message("    Retrieved ",nrow(disgenetVariantHits)," hits")
+            log_info("Retrieved ",nrow(disgenetVariantHits)," hits")
+            #message("    Retrieved ",nrow(disgenetVariantHits)," hits")
             
-            message("  COSMIC")
+            log_info("COSMIC")
+            #message("  COSMIC")
             cosmicHits <- .findCosmicByVariant(fixed$hgvsg,gv)
-            message("    Retrieved ",nrow(cosmicHits)," hits")
+            log_info("Retrieved ",nrow(cosmicHits)," hits")
+            #message("    Retrieved ",nrow(cosmicHits)," hits")
 
-            message("  PharmGKB")
+            log_info("PharmGKB")
+            #message("  PharmGKB")
             pharmgkbHits <- .findPharmGkbByVariant(vcfVariants)
-            message("    Retrieved ",length(pharmgkbHits)," hits")
+            log_info("Retrieved ",length(pharmgkbHits)," hits")
+            #message("    Retrieved ",length(pharmgkbHits)," hits")
             
-            message(" OncoKB")
+            log_info("OncoKB")
+            #message(" OncoKB")
             allSoTerms <- unname(sapply(annList,function(x) {
                 return(x[1,"detailed_impact_so_term"])
             }))
@@ -384,11 +414,14 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             # Clean the hits from empty genes because of improper hgvs parsing
             oncokbHits = oncokbHits[!sapply(oncokbHits,
                 function(x) is.null(x$gene_symbol) || x$oncogenic=="Unknown")]
-            message("    Retrieved ",length(oncokbHits)," hits")
+            log_info("Retrieved ",length(oncokbHits)," hits")
+            #message("    Retrieved ",length(oncokbHits)," hits")
             
-            message("  CiVIC")
+            log_info("CiVIC")
+            #message("  CiVIC")
             civicHits <- .findCivicByOneLetterAA(fixed,annList,gv)
-            message("    Retrieved ",nrow(civicHits)," hits")
+            log_info("Retrieved ",nrow(civicHits)," hits")
+            #message("    Retrieved ",nrow(civicHits)," hits")
             
             return(list(
                 disgenet=disgenetVariantHits,
@@ -521,7 +554,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
         hpo=.formatGeneResource(gn,r,"hpo"),
         ctd=.formatGeneResource(gn,r,"ctd"),
         dbnsfp_gene=.formatGeneResource(gn,r,"dbnsfp_gene"),
-        transcripts=.getTranscripts(g)
+        transcripts=.getTranscripts(g,r)
     ))
 }
 
@@ -560,11 +593,34 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     )
 }
 
-.getTranscripts <- function(g) {
+.getTranscripts <- function(g,r) {
     g$gene_name <- NULL
     # We may have to split as some variants (in exomes/genomes?) may have 
     # multiple impacts joined with "&"
     #g$impact_so <- strsplit(g$impact_so,"&")
+    # Add also SO localization
+    locInd <- match(g$impact_so,r$sol[,1])
+    if (any(is.na(locInd))) {
+        # Two cases
+        # 1. There is a multi-term separated with "&"
+        # 2. Indeed term does not exist
+        # Case 1 must be firstly checked and resolved
+        nas <- which(is.na(locInd))
+        for (ii in nas) {
+            if (grepl("&",g$impact_so[ii])) {
+                # Try to find a close match
+                tmp <- strsplit(g$impact_so[ii],"&")[[1]]
+                m <- match(tmp,r$sol[,1])[1]
+                m <- m[!is.na(m)]
+                if (length(m) > 0)
+                    locInd[ii] <- m[1]
+            }
+        }
+        # For the rest, mention unspecified
+        replaceInd <- which(r$sol[,2]=="unspecified")[1]
+        locInd[is.na(locInd)] <- replaceInd
+    }
+    g$location <- r$sol[locInd,2]
     return(unname(apply(g,1,as.list)))
 }
 
@@ -599,6 +655,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     # Check HGVSg constructed resources
     if (hgvs %in% names(vr$oncokb))
         oncokb <- .formatVariantResource(hgvs,vr,"oncokb")
+    if (hgvs %in% rownames(vr$civic))
+        civic <- .formatVariantResource(hgvs,vr,"civic")
     
     return(list(
         disgenet=disgenet,
@@ -624,7 +682,13 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             return(r$oncokb[[v]])
         },
         civic = {
-            return(NULL)
+            h <- r$civic[v,c(1,2,4),drop=FALSE]
+            rownames(h) <- NULL
+            return(list(
+                id=h$id,
+                gene_id=h$gene_id,
+                variant=h$variant
+            ))
         }
     )
 }
@@ -748,7 +812,6 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     return(vapply(S,function(x) paste(x,collapse=sep),character(1)))
 }
 
-
 #https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=clinvar&term=rs1801158&retmode=json
 
 .findDisgenetByVariant <- function(variants,ver="7.0") {
@@ -866,31 +929,45 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     
     # Remove variants with no protein impacts
     map <- map[map$hgvsp!="",,drop=FALSE]
+    # When dealing with all transcripts, we may have fully duplicated entries
     map <- map[!duplicated(map),,drop=FALSE]
     
     # Continue if map still has rows
     if (nrow(map) > 0) {
         # Convert to 1-AA and assign rownames
         map$oneaa <- .makeOneLetterHgvsp(map$hgvsp)
-        rownames(map) <- map$oneaa
+        #rownames(map) <- map$oneaa
         # Read CiVIC files
         cVars <- read.delim(.getStaticFile(gv,"civic_variants"))
         cGens <- read.delim(.getStaticFile(gv,"civic_genes"))
         # Match
         if (any(cVars$variant %in% map$oneaa)) {
-            # 1. Get variant info, id and gene name
-            varInd <- which(cVars$variant %in% map$oneaa)
+            # We need to use our input data as reference as we have cases with 
+            # the same hgvsp in same gene - this is probably caused by variant 
+            # normalization and multi-allelic split
+            # 1. Get variant info, id and gene name, we need to construct a
+            #    composite key of oneAA-hgvsp and gene name as obviously, the
+            #    same protein alteration may occur more than once in a different
+            #    gene
+            map_keys <- paste(map$oneaa,map$genes,sep="_")
+            civ_keys <- paste(cVars$variant,cVars$feature_name,sep="_")
+            varInd <- which(map_keys %in% civ_keys)
+            vk <- map_keys[varInd]
+            civInd = match(vk,civ_keys)
             hits <- data.frame(
-                id=cVars$variant_id[varInd],
-                variant=cVars$variant[varInd],
-                gene=cVars$feature_name[varInd]
+                id=cVars$variant_id[civInd],
+                #id=as.integer(cVars$variant_id[civInd]),
+                variant=cVars$variant[civInd],
+                gene=cVars$feature_name[civInd]
             )
             # 2. Add gene info
             genInd <- match(hits$gene,cGens$name)
             hits$gene_id <- cGens$gene_id[genInd]
+            #hits$gene_id <- as.integer(cGens$gene_id[genInd])
             # 3. Add hgvsg rownames
-            hits$hgvsg <- map[hits$variant,"hgvsg"]
+            hits$hgvsg <- map[varInd,"hgvsg"]
             rownames(hits) <- hits$hgvsg
+
             return(hits)
         }
         else
@@ -1358,6 +1435,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     log_threshold(DEBUG,index=2)
     logfile <- file.path(analysisPath,"analysis.log")
     log_appender(appender_file(file=logfile),index=2)
+    #log_appender(appender_tee(file=logfile),index=2)
     ## Delete the loggers upon analysis finish - whatever happens
     #on.exit({
     #    delete_logger_index(index=2)

@@ -326,7 +326,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     inVcf <- file.path(vcfDir,"03_snpeff.vcf")
     outVcf <- file.path(vcfDir,"04_dbsnp.vcf")
     
-    # Construct human readbale command to display
+    # Construct human readable command to display
     humanCommand <- glue("
     {snpsift} annotate \\\ 
       -v -noInfo \\\ 
@@ -761,16 +761,17 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
     infoHeaders <- .getDefaultInfoHeaders()
     genoHeaders <- .getDefaultGenoHeaders()
     
-    message("Reading VCF file ",vcfFile)
+    log_info("Reading VCF file ",vcfFile)
     vcf <- readVcf(vcfFile)
     
-    message("Stripping extra fields and harmonizing")
+    log_info("Stripping extra fields and harmonizing")
     # Firstly keep standard chromomosomes, as problems may arise later
     # Remove from seqlevels/seqinfo
     cind <- grep("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",seqlevels(vcf),perl=TRUE)
     seqlevels(vcf) <- seqlevels(vcf)[cind]
     # Remove from vcf object header metadata, otherwise written in output
-    mind <- grep("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",rownames(meta(header(vcf))$contig),perl=TRUE)
+    mind <- grep("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",
+        rownames(meta(header(vcf))$contig),perl=TRUE)
     meta(header(vcf))$contig <- meta(header(vcf))$contig[mind,,drop=FALSE]
     # Remove from actual variants - if any
     citf <- grepl("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",seqnames(vcf),perl=TRUE)
@@ -832,8 +833,10 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
                     names(AD) <- names(AO)
                     geno(vcf)[["AD"]] <- as.matrix(AD)
                 }
-                else
+                else {
+                    log_error("Cannot extract harmonization information!")
                     stop("Cannot extract harmonization information!")
+                }
             }
             else
                 geno(vcf)[[field]] <- as.matrix(rep(".", length(vcf)))
@@ -903,23 +906,6 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
             "marginal (or unconditional) probability of the called genotype")),
         SB=list("1","Float","Strand Bias")
     ))
-}
-
-.getTool <- function(tool) {
-    tool <- tolower(tool)
-    .checkTextArgs("Tool",tool,names(.CONFIG$software),multiarg=FALSE)
-    return(list(
-        command=.CONFIG$software[[tool]]$exec,
-        version=.CONFIG$software[[tool]]$version
-    ))
-}
-
-.getStaticFile <- function(g,d) {
-    if (is.null(.CONFIG$static_files[[g]])) {
-        log_error("FATAL! Static file path for ",g," is not defined!")
-        stop("FATAL! Static file path for ",g," is not defined!")
-    }
-    return(.CONFIG$static_files[[g]][[d]])
 }
 
 .dbnsfpFieldsString <- function() {

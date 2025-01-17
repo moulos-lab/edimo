@@ -30,7 +30,7 @@ schedule <- function(q,fun,args,type="PROCESS",code=.randomString(1,16),
     # log as the framework is not very robust with futures...
     .queue_logger()
     log_debug("Scheduling job of type ",type," with code ",code,
-        " for analysis ",args$aid)
+        " for analysis ",args$aid,namespace="queue")
     
     msg <- list(
         timestamp=Sys.time(),
@@ -47,14 +47,14 @@ schedule <- function(q,fun,args,type="PROCESS",code=.randomString(1,16),
 execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
     # Check if queue is empty
     if (is_empty(q)) {
-        log_debug("No pending jobs found.")
+        log_debug("No pending jobs found.",namespace="queue")
         return(invisible(NULL))
     }
     
     # Try the 1st message from the queue
     msg <- consume(q)
     if (is.null(msg)) {
-        log_debug("All jobs running.")
+        log_debug("All jobs running.",namespace="queue")
         return(invisible(NULL))
     }
     
@@ -66,14 +66,17 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
     
     .queue_logger()
     log_debug("Executing job of type ",jobtype," with code ",code,
-        " for analysis ",args$aid)
+        " for analysis ",args$aid,namespace="queue")
     .updateAnalysisJobId(args$aid,code)
     
     wait <- future_promise({
         # We define a log for queues
         .queue_logger()
+        #print(jobtype)
+        #print(code)
+        #print(args$aid)
         log_info("Job of type ",jobtype," with code ",code," for analysis ",
-            args$aid," entered waiting state")
+            args$aid," entered waiting state",namespace="queue")
         
         withTimeout({
             waitq(q=q,N=N,ms=ms)
@@ -84,7 +87,7 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
     promise <- future_promise({
         .queue_logger()
         log_info("Job of type ",jobtype," with code ",code," for analysis ",
-            args$aid," entered execution state")
+            args$aid," entered execution state",namespace="queue")
         
         withTimeout({
             switch(jobtype,
@@ -105,7 +108,7 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
                             # Mark success
                             .queue_logger()
                             log_info("Job of type ",jobtype," with code ",
-                                code," completed!")
+                                code," completed!",namespace="queue")
                             # Acknowledge to the queue
                             ack(msg)
                         },onRejected=function(err) {
@@ -114,14 +117,16 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
                                 m <- paste0("Process timeout after ",tmout,
                                     "ms!")
                                 log_error("Job of type ",jobtype," with code ",
-                                    code," timeout: ",m)
+                                    code," timeout: ",m,namespace="queue")
                             }
                             else
                                 log_error("Job of type ",jobtype," with code ",
                                     code," rejected from execution with ",
-                                    "error: ",err$message)
+                                    "error: ",err$message,namespace="queue")
                             # Mark job as failed
                             nack(msg)
+                            # Mark analysis as failed
+                            .updateAnalysisFailReason(args$aid,err$message)
                         })
             },
             onRejected=function(err) {
@@ -129,13 +134,16 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
                 if (is(err,"TimeoutException")) {
                     m <- paste0("Process timeout after ",tmout,"ms!")
                     log_error("Job of type ",jobtype," with code ",code,
-                        " rejected with timeout: ",m)
+                        " rejected with timeout: ",m,namespace="queue")
                 }
                 else
                     log_error("Job of type ",jobtype," with code ",code,
-                        " rejected from waiting list with error: ",err$message)
+                        " rejected from waiting list with error: ",err$message,
+                        namespace="queue")
                 # Mark job as failed
                 nack(msg)
+                # Mark analysis as failed
+                .updateAnalysisFailReason(args$aid,err$message)
             }
         )
 }
@@ -143,8 +151,8 @@ execute <- function(q,N=4,ms=10000,tmout=8.64e+8,...) {
 .queue_logger <- function() {
     logger_debug_queue <- layout_glue_generator(
         format='{level} [{format(time, \"%Y-%m-%d %H:%M:%S\")}] | {fn} | {msg}')
-    log_layout(logger_debug_queue,index=1)
-    log_threshold(DEBUG,index=1)
-    logfile <- file.path(file.path(.getAppWorkspace(),"queue","queue.log"))
-    log_appender(appender_file(file=logfile),index=1)
+    log_layout(logger_debug_queue,namespace="queue",index=2)
+    log_threshold(DEBUG,namespace="queue",index=2)
+    logfile <- file.path(file.path(.getAppWorkspace(),"logs","queue.log"))
+    log_appender(appender_file(file=logfile),namespace="queue",index=2)
 }

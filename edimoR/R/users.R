@@ -189,7 +189,7 @@ userLogin <- function(req,res) {
         tryCatch({
             nr <- con$update(filterQuery,updateQuery)
             if (nr$modifiedCount > 0) # Document updated
-                log_debug("User ",username," login recorded.")
+                log_info("User ",username," login recorded.")
             else
                 log_warn("User ",username," login failed to be recorded.")
         },error=function(e) {

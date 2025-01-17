@@ -124,6 +124,23 @@ generateConfigTemplate <- function() {
     return(.CONFIG$helpers$runtime$job_timeout)
 }
 
+.getTool <- function(tool) {
+    tool <- tolower(tool)
+    .checkTextArgs("Tool",tool,names(.CONFIG$software),multiarg=FALSE)
+    return(list(
+        command=.CONFIG$software[[tool]]$exec,
+        version=.CONFIG$software[[tool]]$version
+    ))
+}
+
+.getStaticFile <- function(g,d) {
+    if (is.null(.CONFIG$static_files[[g]])) {
+        log_error("FATAL! Static file path for ",g," is not defined!")
+        stop("FATAL! Static file path for ",g," is not defined!")
+    }
+    return(.CONFIG$static_files[[g]][[d]])
+}
+
 .initConfig <- function(conf) {
     if (!file.exists(conf))
         stop("Main configuration file not found!")
@@ -451,6 +468,26 @@ generateConfigTemplate <- function() {
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
+}
+
+.markAnalysisSuccessfull <- function(aid) {
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            metadata.status=unbox("Complete")
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
+
+multigrep <- function(v,x) {
+    as.logical(rowSums(sapply(v,function(y) {grepl(as.character(y),x)}, 
+        USE.NAMES=FALSE))) 
 }
 
 cmclapply <- function(...,rc) {

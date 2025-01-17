@@ -37,3 +37,10 @@ function(res,req,typ,aid,uid) {
     return(runAnalysis(res,req,typ,aid,uid))
 }
 
+#* Delete analysis (type is determined within)
+#* @param aid The analysis id to perform
+#* @param uid The running user id (can be null)
+#* @delete /delete_analysis
+function(res,req,aid,uid) {
+    return(deleteAnalysisFiles(res,req,aid,uid))
+}

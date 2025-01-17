@@ -1,3 +1,46 @@
+updateAnalysisStats <- function(aid) {
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    # At this point default filters are same as quality ranges
+    qualRanges <- .getVariantQualityRanges(aid)
+    defaultFilter <- list(
+        qual=list(
+            low=qualRanges$minQual,
+            high=qualRanges$maxQual
+        ),
+        dp=list(
+            low=qualRanges$minDp,
+            high=qualRanges$maxDp
+        )
+    )
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            stats.variantType=.getVariantStats(aid),
+            stats.variantStatus=.getVariantStatusStats(aid),
+            stats.variantPopulation=.getVariantPopulationStats(aid),
+            stats.variantQualityRanges=qualRanges,
+            stats.defaultFilter=defaultFilter,
+            stats.variantCgdInherit=.getVariantCgdInheritStats(aid),
+            stats.variantLocation=.getVariantLocationStats(aid),
+            stats.summaryImpact=.getSummaryImpactStats(aid),
+            stats.effectImpact=.getEffectImpactStats(aid),
+            stats.variantZygosity=.getVariantZygosityStats(aid),
+            stats.variantPredictionSummary=.getVariantPredictionSummaryStats(aid),
+            stats.variantPathogenRanges=.getVariantPathogenRanges(aid),
+            stats.variantPopulationRanges=.getVariantPopulationRanges(aid),
+            stats.variantClinDb=.getVariantClinDbStats(aid),
+            stats.geneClinDb=.getGeneClinDbStats(aid)
+        )
+    ))
+    
+    return(con$update(filterQuery,updateQuery))
+}
+
 .getVariantStats <- function(aid) {
     con <- mongoConnect("variants")
     on.exit(mongoDisconnect(con))
@@ -56,7 +99,48 @@
     ))
 }
 
-.getVariantPopulationStats <- function() {
+.getVariantZygosityStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    pipeline <- list(
+        list(
+            "$match"=list(
+                "analysis_id"=list(`$oid`=aid)
+            )
+        ),
+        list(
+            "$unwind"="$identity.type"
+        ),
+        list(
+            "$group"=list(
+                "_id"="$genotypes.gn",
+                "count"=list(
+                    "$sum"=1
+                )
+            )
+        ),
+        list(
+            "$project"=list(
+                "_id"=0L,
+                "type"="$_id",
+                "count"="$count"
+            )
+        )
+    )
+    
+    result <- con$aggregate(.toMongoJSON(pipeline))
+    if ("1/0" %in% result$type) {
+        heti <- which(result$type == "0/1")
+        remi <- which(result$type == "1/0")
+        result[heti,"count"] <- result[heti,"count"] + result[remi,"count"]
+        result <- result[-remi,,drop=FALSE]
+    }
+    
+    return(result)
+}
+
+.getVariantPopulationStats <- function(aid) {
     con <- mongoConnect("variants")
     on.exit(mongoDisconnect(con))
     
@@ -142,7 +226,7 @@
     ))   
 }
 
-.getVariantQualityRanges <- function() {
+.getVariantQualityRanges <- function(aid) {
     con <- mongoConnect("variants")
     on.exit(mongoDisconnect(con))
     
@@ -172,7 +256,7 @@
         limit=1
     )
     if (nrow(result) > 0)
-        retVal$minQual <- result[[1]]$qual
+        retVal$minQual <- as.numeric(result[[1]]$qual)
         
     # Max qual
     maxQualQuery <- list(
@@ -193,7 +277,7 @@
         limit=1
     )
     if (nrow(result) > 0)
-        retVal$maxQual <- result[[1]]$qual
+        retVal$maxQual <- as.numeric(result[[1]]$qual)
     
     # Min depth
     minDpQuery <- list(
@@ -236,6 +320,551 @@
     )
     if (nrow(result) > 0)
         retVal$maxDp <- result[[1]]$dp
+    
+    return(retVal)
+}
+
+.getVariantCgdInheritStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    pipeline <- list(
+        list(
+            "$match"=list(
+                "analysis_id"=list(`$oid`=aid)
+            )
+        ),
+        list(
+            "$unwind"="$annotation.genes"
+        ),
+        list(
+            "$unwind"="$annotation.genes.cgd"
+        ),
+        list(
+            "$group"=list(
+                "_id"="$annotation.genes.cgd.inheritance",
+                "count"=list(
+                    "$sum"=1
+                )
+            )
+        ),
+        list(
+            "$project"=list(
+                "_id"=0L,
+                "type"="$_id",
+                "count"="$count"
+            )
+        )
+    )
+        
+    return(con$aggregate(.toMongoJSON(pipeline)))
+}
+
+.getVariantLocationStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    pipeline <- list(
+        list(
+            "$match"=list(
+                "analysis_id"=list(`$oid`=aid)
+            )
+        ),
+        list(
+            "$unwind"="$annotation.genes"
+        ),
+        list(
+            "$unwind"="$annotation.genes.transcripts"
+        ),
+        list(
+            "$group"=list(
+                "_id"="$annotation.genes.transcripts.location",
+                "count"=list(
+                    "$sum"=1
+                )
+            )
+        ),
+        list(
+            "$project"=list(
+                "_id"=0L,
+                "type"="$_id",
+                "count"="$count"
+            )
+        )
+    )
+    
+    ## Alternative pipeline for canonical transcripts
+    #pipeline <- list(
+    #    list(
+    #        "$match"=list(
+    #            "analysis_id"=list(`$oid`=aid)
+    #        )
+    #    ),
+    #    list(
+    #        "$unwind"="$annotation.genes"
+    #    ),
+    #    list(
+    #        "$unwind"="$annotation.genes.transcripts"
+    #    ),
+    #    list(
+    #        "$group"=list(
+    #            "_id"="$_id",
+    #            "canonical"=list(
+    #                "$first"="$annotation.genes.transcripts.location"
+    #            )
+    #        )
+    #    ),
+    #    list(
+    #        "$group"=list(
+    #            "_id"="$canonical",
+    #            "count"=list(
+    #                "$sum"=1
+    #            )
+    #        )
+    #    ),
+    #    list(
+    #        "$project"=list(
+    #            "_id"=0L,
+    #            "type"="$_id",
+    #            "count"="$count"
+    #        )
+    #    )
+    #)
+    
+    return(con$aggregate(.toMongoJSON(pipeline)))
+}
+
+.getSummaryImpactStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    pipeline <- list(
+        list(
+            "$match"=list(
+                "analysis_id"=list(`$oid`=aid)
+            )
+        ),
+        list(
+            "$unwind"="$annotation.genes"
+        ),
+        list(
+            "$unwind"="$annotation.genes.transcripts"
+        ),
+        list(
+            "$group"=list(
+                "_id"="$annotation.genes.transcripts.impact_snpeff",
+                "count"=list(
+                    "$sum"=1
+                )
+            )
+        ),
+        list(
+            "$project"=list(
+                "_id"=0L,
+                "type"="$_id",
+                "count"="$count"
+            )
+        )
+    )
+    
+    ## Alternative pipeline for canonical transcripts
+    #pipeline <- list(
+    #    list(
+    #        "$match"=list(
+    #            "analysis_id"=list(`$oid`=aid)
+    #        )
+    #    ),
+    #    list(
+    #        "$unwind"="$annotation.genes"
+    #    ),
+    #    list(
+    #        "$unwind"="$annotation.genes.transcripts"
+    #    ),
+    #    list(
+    #        "$group"=list(
+    #            "_id"="$_id",
+    #            "canonical"=list(
+    #                "$first"="$annotation.genes.transcripts.impact_snpeff"
+    #            )
+    #        )
+    #    ),
+    #    list(
+    #        "$group"=list(
+    #            "_id"="$canonical",
+    #            "count"=list(
+    #                "$sum"=1
+    #            )
+    #        )
+    #    ),
+    #    list(
+    #        "$project"=list(
+    #            "_id"=0L,
+    #            "type"="$_id",
+    #            "count"="$count"
+    #        )
+    #    )
+    #)
+    
+    return(con$aggregate(.toMongoJSON(pipeline)))
+}
+
+.getEffectImpactStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    pipeline <- list(
+        list(
+            "$match"=list(
+                "analysis_id"=list(`$oid`=aid)
+            )
+        ),
+        list(
+            "$unwind"="$annotation.genes"
+        ),
+        list(
+            "$unwind"="$annotation.genes.transcripts"
+        ),
+        list(
+            "$group"=list(
+                "_id"="$annotation.genes.transcripts.impact_so",
+                "count"=list(
+                    "$sum"=1
+                )
+            )
+        ),
+        list(
+            "$project"=list(
+                "_id"=0L,
+                "type"="$_id",
+                "count"="$count"
+            )
+        )
+    )
+    
+    ## Alternative pipeline for canonical transcripts
+    #pipeline <- list(
+    #    list(
+    #        "$match"=list(
+    #            "analysis_id"=list(`$oid`=aid)
+    #        )
+    #    ),
+    #    list(
+    #        "$unwind"="$annotation.genes"
+    #    ),
+    #    list(
+    #        "$unwind"="$annotation.genes.transcripts"
+    #    ),
+    #    list(
+    #        "$group"=list(
+    #            "_id"="$_id",
+    #            "canonical"=list(
+    #                "$first"="$annotation.genes.transcripts.impact_so"
+    #            )
+    #        )
+    #    ),
+    #    list(
+    #        "$group"=list(
+    #            "_id"="$canonical",
+    #            "count"=list(
+    #                "$sum"=1
+    #            )
+    #        )
+    #    ),
+    #    list(
+    #        "$project"=list(
+    #            "_id"=0L,
+    #            "type"="$_id",
+    #            "count"="$count"
+    #        )
+    #    )
+    #)
+    
+    return(con$aggregate(.toMongoJSON(pipeline)))
+}
+
+.getVariantPredictionSummaryStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    ..makeVarPredSumPipeline <- function(aid,scr) {
+        return(list(
+            list(
+                "$match"=list(
+                    "analysis_id"=list(`$oid`=aid)
+                )
+            ),
+            list(
+                "$unwind"=list(
+                    "path"=paste0("$pathogenicity.",scr,"_pred"),
+                    "preserveNullAndEmptyArrays"=TRUE
+                )
+            ),
+            list(
+                "$group"=list(
+                    "_id"=paste0("$pathogenicity.",scr,"_pred"),
+                    "count"=list(
+                        "$sum"=1
+                    )
+                )
+            ),
+            list(
+                "$project"=list(
+                    "_id"=0L,
+                    "type"="$_id",
+                    "count"="$count"
+                )
+            )
+        ))
+    }
+    
+    pipelines <- list(
+        sift=..makeVarPredSumPipeline(aid,"sift"),
+        sift_4g=..makeVarPredSumPipeline(aid,"sift4g"),
+        polyphen2_hdiv=..makeVarPredSumPipeline(aid,"polyphen2_hdiv"),
+        polyphen2_hvar=..makeVarPredSumPipeline(aid,"polyphen2_hvar"),
+        lrt=..makeVarPredSumPipeline(aid,"lrt"),
+        mutationtaster=..makeVarPredSumPipeline(aid,"mutationtaster"),
+        mutationassessor=..makeVarPredSumPipeline(aid,"mutationassessor"),
+        fathmm=..makeVarPredSumPipeline(aid,"fathmm"),
+        provean=..makeVarPredSumPipeline(aid,"provean"),
+        metasvm=..makeVarPredSumPipeline(aid,"metasvm"),
+        metalr=..makeVarPredSumPipeline(aid,"metalr"),
+        metarnn=..makeVarPredSumPipeline(aid,"metarnn"),
+        m_cap=..makeVarPredSumPipeline(aid,"m_cap"),
+        primateai=..makeVarPredSumPipeline(aid,"primateai"),
+        deogen2=..makeVarPredSumPipeline(aid,"deogen2"),
+        clinpred=..makeVarPredSumPipeline(aid,"clinpred"),
+        alphamissense=..makeVarPredSumPipeline(aid,"alphamissense")#,
+        #aloft=..makeVarPredSumPipeline(aid,"aloft")
+    )
+    
+    results <- lapply(pipelines,function(x) {
+        y <- con$aggregate(.toMongoJSON(x))
+        y$type[is.na(y$type)] <- "U"
+        return(y)
+    })
+    names(results) <- names(pipelines)
+    
+    return(results)
+}
+
+.getVariantPathogenRanges <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    ..makeVarPathRangeQueries <- function(aid,scr) {
+        main <- list(
+            "analysis_id"=list(`$oid`=aid),
+            tobenamed=list(
+                "$ne"=NULL
+            )
+        )
+        mins <- list(tobenamed=1L)
+        maxs <- list(tobenamed=-1L)
+        f <- list("_id"=0L,tobenamed=1L)
+        names(main)[2] <- names(mins)[1] <- names(maxs)[1] <- names(f)[2] <-
+            paste0("pathogenicity.",scr,"_score")
+        return(list(main=main,sortmin=mins,sortmax=maxs,fields=f))
+    }
+    
+    queries <- list(
+        sift=..makeVarPathRangeQueries(aid,"sift"),
+        sift4g=..makeVarPathRangeQueries(aid,"sift4g"),
+        polyphen2_hdiv=..makeVarPathRangeQueries(aid,"polyphen2_hdiv"),
+        polyphen2_hvar=..makeVarPathRangeQueries(aid,"polyphen2_hvar"),
+        lrt=..makeVarPathRangeQueries(aid,"lrt"),
+        mutationtaster=..makeVarPathRangeQueries(aid,"mutationtaster"),
+        mutationassessor=..makeVarPathRangeQueries(aid,"mutationassessor"),
+        fathmm=..makeVarPathRangeQueries(aid,"fathmm"),
+        provean=..makeVarPathRangeQueries(aid,"provean"),
+        metasvm=..makeVarPathRangeQueries(aid,"metasvm"),
+        metalr=..makeVarPathRangeQueries(aid,"metalr"),
+        metarnn=..makeVarPathRangeQueries(aid,"metarnn"),
+        m_cap=..makeVarPathRangeQueries(aid,"m_cap"),
+        primateai=..makeVarPathRangeQueries(aid,"primateai"),
+        deogen2=..makeVarPathRangeQueries(aid,"deogen2"),
+        clinpred=..makeVarPathRangeQueries(aid,"clinpred"),
+        alphamissense=..makeVarPathRangeQueries(aid,"alphamissense"),
+        dann=..makeVarPathRangeQueries(aid,"dann"),
+        vest4=..makeVarPathRangeQueries(aid,"vest4"),
+        revel=..makeVarPathRangeQueries(aid,"revel")
+    )
+    
+    results <- lapply(queries,function(x) {
+        # Find mininum score
+        minScore <- con$find(
+            query=.toMongoJSON(x$main),
+            fields=.toMongoJSON(x$fields),
+            sort=.toMongoJSON(x$sortmin),
+            limit=1
+        )
+        if (nrow(minScore) > 0) {
+            maxScore <- con$find(
+                query=.toMongoJSON(x$main),
+                fields=.toMongoJSON(x$fields),
+                sort=.toMongoJSON(x$sortmax),
+                limit=1
+            )
+            return(list(
+                min=minScore[[1]][1,1],
+                max=maxScore[[1]][1,1],
+                exists=TRUE
+            ))
+        }
+        else {
+            return(list(
+                min=NA,
+                max=NA,
+                exists=FALSE
+            ))
+        }
+    })
+    names(results) <- names(queries)
+    
+    return(results)
+}
+
+.getVariantPopulationRanges <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    ..makeVarPopRangeQueries <- function(aid,pop) {
+        main <- list(
+            "analysis_id"=list(`$oid`=aid),
+            tobenamed=list(
+                "$ne"=NULL
+            )
+        )
+        mins <- list(tobenamed=1L)
+        maxs <- list(tobenamed=-1L)
+        f <- list("_id"=0L,tobenamed=1L)
+        names(main)[2] <- names(mins)[1] <- names(maxs)[1] <- names(f)[2] <-
+            paste0("population.",pop,".af")
+        return(list(main=main,sortmin=mins,sortmax=maxs,fields=f))
+    }
+    
+    queries <- list(
+        tgp=..makeVarPopRangeQueries(aid,"tgp"),
+        exac=..makeVarPopRangeQueries(aid,"exac"),
+        esp=..makeVarPopRangeQueries(aid,"esp"),
+        uk10k=..makeVarPopRangeQueries(aid,"uk10k"),
+        alfa=..makeVarPopRangeQueries(aid,"alfa"),
+        gnomad_exomes=..makeVarPopRangeQueries(aid,"gnomad_exomes"),
+        gnomad_genomes=..makeVarPopRangeQueries(aid,"gnomad_genomes")
+    )
+    
+    results <- lapply(queries,function(x) {
+        # Find mininum score
+        minAf <- con$find(
+            query=.toMongoJSON(x$main),
+            fields=.toMongoJSON(x$fields),
+            sort=.toMongoJSON(x$sortmin),
+            limit=1
+        )
+        if (nrow(minAf) > 0) {
+            maxAf <- con$find(
+                query=.toMongoJSON(x$main),
+                fields=.toMongoJSON(x$fields),
+                sort=.toMongoJSON(x$sortmax),
+                limit=1
+            )
+            return(list(
+                min=minAf[[1]][1,1],
+                max=maxAf[[1]][1,1],
+                exists=TRUE
+            ))
+        }
+        else {
+            return(list(
+                min=NA,
+                max=NA,
+                exists=FALSE
+            ))
+        }
+    })
+    names(results) <- names(queries)
+    
+    return(results)
+}
+
+.getVariantClinDbStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    retVal <- list(
+        disgenet=0,
+        pharmgkb=0,
+        oncokb=0,
+        civic=0,
+        clinvar_sig=0,
+        clinvar_onc=0
+    )
+    
+    retVal$disgenet <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.variant.disgenet"=list("$ne"=NULL)
+    )))
+    retVal$pharmgkb <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.variant.pharmgkb"=list("$ne"=NULL)
+    )))
+    retVal$oncokb <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.variant.oncokb"=list("$ne"=NULL)
+    )))
+    retVal$civic <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.variant.civic"=list("$ne"=NULL)
+    )))
+    retVal$clinvar_sig <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "pathogenicity.clinvar_clnsig"=list("$ne"=NULL)
+    )))
+    retVal$clinvar_onc <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "pathogenicity.clinvar_onc"=list("$ne"=NULL)
+    )))
+    
+    return(retVal)
+}
+
+.getGeneClinDbStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    retVal <- list(
+        disgenet=0,
+        hpo=0,
+        ctd=0,
+        cgd=0,
+        omim=0,
+        omimMorbid=0
+    )
+    
+    retVal$disgenet <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.genes.disgenet"=list("$ne"=NULL)
+    )))
+    retVal$hpo <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.genes.hpo"=list("$ne"=NULL)
+    )))
+    retVal$ctd <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.genes.ctd"=list("$ne"=NULL)
+    )))
+    retVal$cgd <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.genes.cgd"=list("$ne"=NULL)
+    )))
+    retVal$omim <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.genes.omim"=list("$ne"=NULL)
+    )))
+    retVal$omimMorbid <- con$count(.toMongoJSON(list(
+        analysis_id=list(`$oid`=aid),
+        "annotation.genes.omim_morbid"=list("$ne"=NULL)
+    )))
     
     return(retVal)
 }

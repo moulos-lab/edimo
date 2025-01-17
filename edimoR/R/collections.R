@@ -694,7 +694,8 @@
                 "genome_version",
                 "secondary_protocol",
                 "tertiary_protocol",
-                "job_id"
+                "job_id",
+                "insert_token"
               ],
               "properties": {
                 "date_created": {
@@ -750,7 +751,13 @@
                     "string",
                     "null"
                   ]
-                }
+                },
+                "insert_token": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
               }
             },
             "progress": {
@@ -873,7 +880,7 @@
                     "null"
                    ]
                 },
-                "geneClinDbStats": {
+                "geneClinDb": {
                   "bsonType": "object",
                   "properties": {
                     "hpo": {
@@ -896,7 +903,7 @@
                     }
                   }
                 },
-                "variantStatusStats": {
+                "variantStatus": {
                   "bsonType": "object",
                   "properties": {
                     "novel": {
@@ -907,7 +914,7 @@
                     }
                   }
                 },
-                "variantLocationStats": {
+                "variantLocation": {
                   "bsonType": [
                     "array",
                     "null"
@@ -933,7 +940,7 @@
                     }
                   }
                 },
-                "variantTypeStats": {
+                "variantType": {
                   "bsonType": [
                     "array",
                     "null"
@@ -959,11 +966,11 @@
                     }
                   }
                 },
-                "variantInheritanceStats": {
+                "variantInheritance": {
                   "bsonType": [
                     "object",
                     "null"
-                  ]
+                  ],
                   "properties": {
                     "dominant": {
                       "bsonType": [
@@ -985,7 +992,7 @@
                     }
                   }
                 },
-                "variantClinDbStats": {
+                "variantClinDb": {
                   "bsonType": [
                     "object",
                     "null"
@@ -994,7 +1001,10 @@
                     "disgenet": {
                       "bsonType": "int"
                     },
-                    "clinvar": {
+                    "clinvar_sig": {
+                      "bsonType": "int"
+                    },
+                    "clinvar_onc": {
                       "bsonType": "int"
                     },
                     "civic": {
@@ -1011,15 +1021,15 @@
                     "null"
                   ]
                 },
-                "variantPopulationStats": {
+                "variantPopulation": {
                   "bsonType": [
                     "object",
                     "null"
                   ]
                 },
-                "variantZygosityStats": {
+                "variantZygosity": {
                   "bsonType": [
-                    "object",
+                    "array",
                     "null"
                   ]
                 },
@@ -1027,10 +1037,10 @@
                   "bsonType": "object",
                   "properties": {
                     "minQual": {
-                      "bsonType": "double"
+                      "bsonType": ["double","int"]
                     },
                     "maxQual": {
-                      "bsonType": "double"
+                      "bsonType": ["double","int"]
                     },
                     "minDp": {
                       "bsonType": "int"
@@ -1046,7 +1056,7 @@
                     "null"
                   ]
                 },
-                "variantClinvarStats": {
+                "variantClinvar": {
                   "bsonType": [
                     "array",
                     "null"
@@ -1067,7 +1077,7 @@
                     }
                   }
                 },
-                "geneCgdStats": {
+                "geneCgd": {
                   "bsonType": [
                     "object",
                     "null"
@@ -1215,7 +1225,7 @@
                     }
                   }
                 },
-                "effectImpactStats": {
+                "effectImpact": {
                   "bsonType": [
                     "array",
                     "null"
