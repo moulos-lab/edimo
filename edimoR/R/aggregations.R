@@ -34,7 +34,10 @@ updateAnalysisStats <- function(aid) {
             stats.variantPathogenRanges=.getVariantPathogenRanges(aid),
             stats.variantPopulationRanges=.getVariantPopulationRanges(aid),
             stats.variantClinDb=.getVariantClinDbStats(aid),
-            stats.geneClinDb=.getGeneClinDbStats(aid)
+            stats.geneClinDb=.getGeneClinDbStats(aid),
+            stats.variantClinvar=.getVariantClinvarStats(aid),
+            stats.disease=.getDiseaseStats(aid),
+            stats.presentContigs=.getPresentContigs(aid)
         )
     ))
     
@@ -85,8 +88,17 @@ updateAnalysisStats <- function(aid) {
     # Novel query
     novelQuery <- list(
         "analysis_id"=list(`$oid`=aid),
-        "identity.rsid"=list(
-            "$eq"=NULL
+        "$and"=list(
+            list(
+                "identity.rsid"=list(
+                    "$eq"="."
+                )
+            ),
+            list(
+                "identity.cosmic"=list(
+                    "$eq"=NULL
+                )
+            )                
         )
     )
     
@@ -638,11 +650,15 @@ updateAnalysisStats <- function(aid) {
         #aloft=..makeVarPredSumPipeline(aid,"aloft")
     )
     
-    results <- lapply(pipelines,function(x) {
+    results <- lapply(names(pipelines),function(n,P) {
+        x <- P[[n]]
         y <- con$aggregate(.toMongoJSON(x))
-        y$type[is.na(y$type)] <- "U"
+        if (n == "lrt")
+            y$type[is.na(y$type)] <- "Z"
+        else
+            y$type[is.na(y$type)] <- "U"
         return(y)
-    })
+    },pipelines)
     names(results) <- names(pipelines)
     
     return(results)
@@ -738,8 +754,13 @@ updateAnalysisStats <- function(aid) {
         mins <- list(tobenamed=1L)
         maxs <- list(tobenamed=-1L)
         f <- list("_id"=0L,tobenamed=1L)
+        af <- ".af"
+        if (pop == "alfa")
+            af <- ".total_af"
+        if (pop == "esp")
+            af <- ".ea_af"
         names(main)[2] <- names(mins)[1] <- names(maxs)[1] <- names(f)[2] <-
-            paste0("population.",pop,".af")
+            paste0("population.",pop,af)
         return(list(main=main,sortmin=mins,sortmax=maxs,fields=f))
     }
     
@@ -769,8 +790,8 @@ updateAnalysisStats <- function(aid) {
                 limit=1
             )
             return(list(
-                min=minAf[[1]][1,1],
-                max=maxAf[[1]][1,1],
+                min=minAf[[1]][1,1][1,1],
+                max=maxAf[[1]][1,1][1,1],
                 exists=TRUE
             ))
         }
@@ -867,4 +888,107 @@ updateAnalysisStats <- function(aid) {
     )))
     
     return(retVal)
+}
+
+.getVariantClinvarStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    pipelineSig <- list(
+        list(
+            "$match"=list(
+                "analysis_id"=list(`$oid`=aid)
+            )
+        ),
+        list(
+            "$unwind"="$pathogenicity"
+        ),
+        list(
+            "$group"=list(
+                "_id"="$pathogenicity.clinvar_clnsig",
+                "count"=list(
+                    "$sum"=1
+                )
+            )
+        ),
+        list(
+            "$project"=list(
+                "_id"=0L,
+                "type"="$_id",
+                "count"="$count"
+            )
+        )
+    )
+    
+    pipelineOnc <- list(
+        list(
+            "$match"=list(
+                "analysis_id"=list(`$oid`=aid)
+            )
+        ),
+        list(
+            "$unwind"="$pathogenicity"
+        ),
+        list(
+            "$group"=list(
+                "_id"="$pathogenicity.clinvar_onc",
+                "count"=list(
+                    "$sum"=1
+                )
+            )
+        ),
+        list(
+            "$project"=list(
+                "_id"=0L,
+                "type"="$_id",
+                "count"="$count"
+            )
+        )
+    )
+    
+    sig <- con$aggregate(.toMongoJSON(pipelineSig))
+    if (any(is.na(sig$type)))
+        sig$type[is.na(sig$type)] <- "Unknown"
+    onc <- con$aggregate(.toMongoJSON(pipelineOnc))
+    if (any(is.na(onc$type)))
+        onc$type[is.na(onc$type)] <- "Unknown"
+    
+    return(list(sig=sig,onc=onc))
+}
+
+.getDiseaseStats <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    diseaseField <- "annotation.genes.disgenet.name"
+    phenoField <- "annotation.genes.hpo.name"
+    cgdCondField <- "annotation.genes.cgd.condition"
+    ctdChemField <- "annotation.genes.ctd.name"
+    phgChemField <- "annotation.variant.pharmgkb.chemicals.chemical_name"
+    #omimField <- "annotation.genes.omim.name"
+    #omimMorbidField <- "annotation.genes.omim_morbid.name"
+    
+    query <- list(
+        "analysis_id"=list(`$oid`=aid)
+    )
+    
+    return(list(
+        disgenet=length(con$distinct(diseaseField,.toMongoJSON(query))),
+        hpo=length(con$distinct(phenoField,.toMongoJSON(query))),
+        cgd=length(con$distinct(cgdCondField,.toMongoJSON(query))),
+        ctd=length(con$distinct(ctdChemField,.toMongoJSON(query))),
+        pharmgkb=length(con$distinct(phgChemField,.toMongoJSON(query)))
+    ))
+}
+
+.getPresentContigs <- function(aid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    query <- .toMongoJSON(list(
+        "analysis_id"=list(`$oid`=aid)
+    ))
+    key <- "identity.chr"
+    
+    return(con$distinct(key,query))
 }

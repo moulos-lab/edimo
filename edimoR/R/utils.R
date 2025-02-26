@@ -141,6 +141,34 @@ generateConfigTemplate <- function() {
     return(.CONFIG$static_files[[g]][[d]])
 }
 
+#~ .getReference <- function(g,d=c("reference","snpeff","so_localizations")) {
+#~  if (is.null(.CONFIG$static_files[[g]])) {
+#~         log_error("FATAL! Reference genome path for ",g," is not defined!")
+#~         stop("FATAL! Reference genome path for ",g," is not defined!")
+#~     }
+#~     return(.CONFIG$static_files[[g]][[d]])
+#~ }
+
+#~ # g: genome, d: database, v: version
+#~ # e.g.: dbSNP 155 -> file.path(resourcePath,g,d,v)
+#~ .getStaticFile <- function(g,d,v) {
+#~     if (is.null(.CONFIG$static_files[[g]])) {
+#~         log_error("FATAL! Static file path for ",g," is not defined!")
+#~         stop("FATAL! Static file path for ",g," is not defined!")
+#~     }
+#~     ext <- switch(d,
+#~      dbsnp = { return(".vcf.gz") },
+#~      dbnsfp = { return(".txt.gz") },
+#~      dbnsfp_gene = { return(".txt.gz") },
+#~      gnomad_exomes = { return(".vcf.bgz") },
+#~      gnomad_genomes = { return(".vcf.bgz") },
+#~      clinvar = { return(".vcf.gz") },
+#~      civic_variants = { return(".tsv") },
+#~      civic_genes = { return(".tsv") }
+#~     )
+#~     return(file.path(.CONFIG$resource_path,g,d,paste0(v,ext)))
+#~ }
+
 .initConfig <- function(conf) {
     if (!file.exists(conf))
         stop("Main configuration file not found!")
@@ -483,6 +511,202 @@ generateConfigTemplate <- function() {
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
+}
+
+.updateSampleGenomeSize <- function(sid,size) {
+    con <- mongoConnect("samples")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=sid)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            genome_size=unname(size)
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
+
+.updateSampleAnalyses <- function(sid,aid) {
+    con <- mongoConnect("samples")
+    on.exit(mongoDisconnect(con))
+    
+    # Get added analysis name
+    aname <- .getAnalysisName(aid)
+    
+    # Get current analyses so as to add to them
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=sid)
+        
+    ))
+    fields <- .toMongoJSON(list(analyses=1L))
+    result <- con$find(filterQuery,fields)
+    
+    # Check what we have
+    if (is.na(result$analyses))
+        # The first to be added
+        analyses <- list(
+            list(
+                id=list(`$oid`=aid),
+                name=aname
+            )
+        )
+    else {
+        # Does it already exist (unlikely) - if yes just return
+        if (aid %in% result$analyses[[1]]$id)
+            invisible(return(FALSE))
+        # Otherwise add the new analysis
+        analyses <- rbind(result$analyses[[1]],data.frame(id=aid,name=aname))
+    }
+    
+    # Finally, update samples
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            analyses=analyses
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
+
+.updateAnalysisToolset <- function(aid) {
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            toolset=.getToolset()
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
+
+.updateAnalysisParams <- function(aid) {
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            parameters=list(
+                database=.tmpStaticDbVersions()
+            )
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
+
+.getAnalysisName <- function(aid) {
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=aid)
+        
+    ))
+    fields <- .toMongoJSON(list(name=1L))
+    result <- con$find(filterQuery,fields)
+    
+    return(result$name)
+}
+
+.getToolset <- function() {
+    if (is.null(.CONFIG$software)) {
+        log_error("FATAL! Software versions are not defined!")
+        stop("FATAL! Software versions are not defined!")
+    }
+    tools <- .CONFIG$software
+    return(lapply(names(tools),function(n) {
+        return(list(
+            name=n,
+            version=tools[[n]]$version
+        ))
+    }))
+}
+
+.tmpStaticDbVersions <- function() {
+    return(list(
+        list(
+            name="snpeff",
+            fullname="SnpEff",
+            version="GRCh37.p13"
+        ),
+        list(
+            name="dbsnp",
+            fullname="dbSNP",
+            version="155"
+        ),
+        list(
+            name="dbnsfp",
+            fullname="dbNSFP",
+            version="4.6c"
+        ),
+        list(
+            name="dbnsfp_gene",
+            fullname="dbNSFP gene",
+            version="4.6c"
+        ),
+        list(
+            name="gnomad_exomes",
+            fullname="gnomAD exomes",
+            version="4.0"
+        ),
+        list(
+            name="gnomad_genomes",
+            fullname="gnomAD genomes",
+            version="4.0"
+        ),
+        list(
+            name="clinvar",
+            fullname="ClinVar",
+            version="202412"
+        ),
+        list(
+            name="cosmic",
+            fullname="COSMIC",
+            version="100"
+        ),
+        list(
+            name="civic",
+            fullname="CIViC",
+            version="20241201"
+        ),
+        list(
+            name="oncokb",
+            fullname="OncoKB",
+            version=gsub("-","",as.character(Sys.Date()))
+        ),
+        list(
+            name="pharmgkb",
+            fullname="PharmGKB",
+            version="20240905"
+        ),
+        list(
+            name="disgenet",
+            fullname="DisGeNET",
+            version="7.0"
+        ),
+        list(
+            name="hpo",
+            fullname="HPO",
+            version="20240813"
+        ),
+        list(
+            name="cgd",
+            fullname="Clinical Genomics Database",
+            version="20240701"
+        ),
+        list(
+            name="ctd",
+            fullname="Comparative Toxicogenomics Database",
+            version="20240927"
+        )
+    ))
 }
 
 multigrep <- function(v,x) {

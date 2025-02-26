@@ -88,6 +88,9 @@ annotateAndInsertVariants <- function(aid) {
         annoFile <- annotateVcf(destFile,gv=result$metadata$genome_version[1],
             aid=aid)
         
+        log_info("Retrieving chromsome list and size for analysis ",aid)
+        .getGenomeSize(annoFile,sid)
+        
         # TODO: In the future. vcfToList will accept one more argument according
         #       to variant annotation type (somatic, germline, etc.)
         aType <- "generic" # Will be analysis-based
@@ -160,8 +163,11 @@ annotateAndInsertVariants <- function(aid) {
         # Analysis step 8 complete - update progress
         .updateAnalysisProgress(aid,8,100*(8/nsteps),"Complete")
         .markAnalysisSuccessfull(aid)
-        
-        # Next, we calculate variant calling stats with aggregations
+        # ...and add analysis id to the analyzed sample
+        .updateSampleAnalyses(sid,aid)
+        # Add toolset and database versions (TODO: db versions dynamically)
+        .updateAnalysisToolset(aid)
+        .updateAnalysisParams(aid)
     }
     else {
         .updateAnalysisProgress(aid,8,100*(8/nsteps),"Failed")
@@ -231,7 +237,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
         nucleoGenos <- readGT(vcfFile,nucleotides=TRUE)
         return(.vcfToListWorker(vcf,nucleoGenos,gv,aType))
     }
-}   
+}
     
 .vcfToListWorker <- function(vcf,nucleoGenos,gv,aType) {    
     # Derive the main building blocks of the list that will represent a document
@@ -322,7 +328,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     docs <- lapply(seq_along(vcf),function(i) {
         list(
             identity=.getIdentity(fixed[i,,drop=FALSE],rsids[[i]],
-                variantResource$cosmicHits),
+                variantResource$cosmic),
             metrics=.getMetrics(metrics[i,]),
             genotypes=.getGenotype(genos[i,,drop=FALSE]),
             pathogenicity=.getPathogenicity(dbnsfp[i,,drop=FALSE],
@@ -425,6 +431,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             
             return(list(
                 disgenet=disgenetVariantHits,
+                cosmic=cosmicHits,
                 pharmgkb=pharmgkbHits,
                 oncokb=oncokbHits,
                 civic=civicHits
@@ -444,7 +451,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
         alt=fixed$alt,
         qual=fixed$qual,
         type=fixed$type,
-        rsid=rsids,
+        rsid=if (length(rsids)==1) list(rsids) else rsids,
         cosmic=ch[rownames(fixed),"cosmic_id"]
     ))
 }
@@ -1403,6 +1410,30 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
         Ile="I",Leu="L",Lys="K",Met="M",Phe="F",Pro="P",Ser="S",Thr="T",Trp="W",
         Tyr="Y",Val="V",Sec="U",Pyl="O",Ter="*",Xaa="X",Ter="*"
     ))
+}
+
+.getGenomeSize <- function(afile,sid) {
+    # Read in VCF header to get genome size
+    vcfCon <- VcfFile(afile,yieldSize=1)
+    open(vcfCon)            
+    vcftmp <- suppressWarnings(readVcf(vcfCon))
+    close(vcfCon)
+    
+    # seqinfo may not be what we want... Get data directly from contigs
+    contigs <- meta(header(vcftmp))$contig
+    if (!is.null(contigs)) {
+        # Derive genome size
+        contigs$seq=rownames(contigs)
+        genomeSize <- apply(contigs,1,function(x) {
+            return(list(
+                seq=x[3],
+                len=as.integer(x[1])
+            ))
+        })
+        
+        # Update sample in database
+        .updateSampleGenomeSize(sid,genomeSize)
+    }
 }
 
 .analysis_logger <- function(analysisPath) {

@@ -168,6 +168,7 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     sequencing_platform <- ..getSequencingPlatforms()
     sequencing_protocol <- ..getSequencingProtocols()
     sequencing_kit <- ..getSequencingKits()
+    pathocuts <- ..getPathocuts()
     
     # Construct the data to be batch inserted
     statics <- list(
@@ -178,7 +179,8 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         genome_version=genome_version,
         sequencing_platform=sequencing_platform,
         sequencing_protocol=sequencing_protocol,
-        sequencing_kit=sequencing_kit
+        sequencing_kit=sequencing_kit,
+        pathocust=pathocuts
     )
     statics <- .toMongoJSON(statics,pretty=T)
     

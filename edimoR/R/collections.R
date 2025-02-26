@@ -1057,22 +1057,58 @@
                   ]
                 },
                 "variantClinvar": {
-                  "bsonType": [
-                    "array",
-                    "null"
-                  ],
-                  "items": {
-                    "bsonType": "object",
-                    "required": [
-                      "type",
-                      "count"
-                    ],
-                    "properties": {
-                      "type": {
-                        "bsonType": "string"
-                      },
-                      "count": {
-                        "bsonType": "int"
+                  "bsonType": "object",
+                  "properties": {
+                    "sig": {
+                      "bsonType": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "bsonType": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "type": {
+                            "bsonType": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "count": {
+                            "bsonType": [
+                              "int",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "onc": {
+                      "bsonType": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "bsonType": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "type": {
+                            "bsonType": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "count": {
+                            "bsonType": [
+                              "int",
+                              "null"
+                            ]
+                          }
+                        }
                       }
                     }
                   }
@@ -1178,41 +1214,10 @@
                   }
                 },
                 "disease": {
-                  "bsonType": "object",
-                  "properties": {
-                    "classes": {
-                      "bsonType": [
-                        "array",
-                        "null"
-                      ],
-                      "items": {
-                        "bsonType": [
-                          "object",
-                          "null"
-                        ],
-                        "properties": {
-                          "type": {
-                            "bsonType": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "count": {
-                            "bsonType": [
-                              "int",
-                              "null"
-                            ]
-                          }
-                        }
-                      }
-                    },
-                    "diseases": {
-                      "bsonType": [
-                        "int",
-                        "null"
-                      ]
-                    }
-                  }
+                   "bsonType": [
+                      "object",
+                      "null"
+                   ]
                 },
                 "defaultFilter": {
                   "bsonType": "object",
@@ -1232,6 +1237,15 @@
                   ],
                   "items": {
                     "bsonType": "object"
+                  }
+                },
+                "presentContigs": {
+                  "bsonType": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "bsonType": "string"
                   }
                 }
               }
@@ -1442,3 +1456,42 @@
 #db.disgenet_gene.createIndex({
 #   "gene_name": 1
 #})
+
+
+#~ "disease": {
+#~   "bsonType": "object",
+#~   "properties": {
+#~  "classes": {
+#~    "bsonType": [
+#~      "array",
+#~      "null"
+#~    ],
+#~    "items": {
+#~      "bsonType": [
+#~        "object",
+#~        "null"
+#~      ],
+#~      "properties": {
+#~        "type": {
+#~          "bsonType": [
+#~            "string",
+#~            "null"
+#~          ]
+#~        },
+#~        "count": {
+#~          "bsonType": [
+#~            "int",
+#~            "null"
+#~          ]
+#~        }
+#~      }
+#~    }
+#~  },
+#~  "diseases": {
+#~    "bsonType": [
+#~      "int",
+#~      "null"
+#~    ]
+#~  }
+#~   }
+#~ },

@@ -1,5 +1,6 @@
 # It is assumed that the path where the vcfFile lives, is the path where all
 # analyses will run and files will be produced
+# An argument dv for database version will be added
 annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     log_info("Entering main VCF annotator")
     
