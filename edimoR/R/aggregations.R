@@ -177,7 +177,7 @@ updateAnalysisStats <- function(aid) {
     # ESP variants query
     espQuery <- list(
         "analysis_id"=list(`$oid`=aid),
-        "population.esp.af"=list(
+        "population.esp.ea_af"=list(
             "$ne"=NULL
         )
     )
@@ -191,7 +191,7 @@ updateAnalysisStats <- function(aid) {
     # ALFA variants query
     alfaQuery <- list(
         "analysis_id"=list(`$oid`=aid),
-        "population.alfa.af"=list(
+        "population.alfa.total_af"=list(
             "$ne"=NULL
         )
     )

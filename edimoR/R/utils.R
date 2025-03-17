@@ -476,7 +476,9 @@ generateConfigTemplate <- function() {
     updateQuery <- .toMongoJSON(list(
         `$set`=list(
             metadata.fail_reason=unbox(reason),
-            metadata.status=unbox("Failed")
+            metadata.status=unbox("Failed"),
+            metadata.date_updated=unbox(Sys.time()),
+            metadata.date_completed=unbox(Sys.time())
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
@@ -492,7 +494,8 @@ generateConfigTemplate <- function() {
     updateQuery <- .toMongoJSON(list(
         `$set`=list(
             metadata.job_id=unbox(jobid),
-            metadata.status=unbox("Running")
+            metadata.status=unbox("Running"),
+            metadata.date_updated=unbox(Sys.time())
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
@@ -507,7 +510,9 @@ generateConfigTemplate <- function() {
     ))
     updateQuery <- .toMongoJSON(list(
         `$set`=list(
-            metadata.status=unbox("Complete")
+            metadata.status=unbox("Complete"),
+            metadata.date_updated=unbox(Sys.time()),
+            metadata.date_completed=unbox(Sys.time())
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
@@ -522,7 +527,8 @@ generateConfigTemplate <- function() {
     ))
     updateQuery <- .toMongoJSON(list(
         `$set`=list(
-            genome_size=unname(size)
+            genome_size=unname(size),
+            metadata.date_updated=unbox(Sys.time())
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
@@ -563,7 +569,8 @@ generateConfigTemplate <- function() {
     # Finally, update samples
     updateQuery <- .toMongoJSON(list(
         `$set`=list(
-            analyses=analyses
+            analyses=analyses,
+            metadata.date_updated=unbox(Sys.time())
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
@@ -578,7 +585,8 @@ generateConfigTemplate <- function() {
     ))
     updateQuery <- .toMongoJSON(list(
         `$set`=list(
-            toolset=.getToolset()
+            toolset=.getToolset(),
+            metadata.date_updated=unbox(Sys.time())
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
@@ -595,7 +603,8 @@ generateConfigTemplate <- function() {
         `$set`=list(
             parameters=list(
                 database=.tmpStaticDbVersions()
-            )
+            ),
+            metadata.date_updated=unbox(Sys.time())
         )
     ))
     invisible(con$update(filterQuery,updateQuery))

@@ -1428,6 +1428,67 @@
             "sequencing_kit": {
               "bsonType": "array",
               "items": {
+                "bsonType": "object",
+                "required": [
+                  "name",
+                  "manufacturer",
+                  "product_id"
+                ],
+                "properties": {
+                  "name": {
+                    "bsonType": "string"
+                  },
+                  "manufacturer": {
+                    "bsonType": "string"
+                  },
+                  "product_id": {
+                    "bsonType": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "variant_type": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "variant_zygosity": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "variant_location": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "variant_effect_snpeff": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "clinvar_sig": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "clinvar_onc": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "so_terms": {
+              "bsonType": "array",
+              "items": {
                 "bsonType": "string"
               }
             }
@@ -1448,6 +1509,145 @@
     return(
     '{
       "create": "variants" 
+    }'
+    )
+}
+
+.defineFiltersCollection <- function() {
+    return(
+    '{
+      "create": "filters",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "name",
+            "metadata",
+            "ownership",
+            "filter",
+            "rule"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "objectId"
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "description": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "metadata": {
+              "bsonType": "object",
+              "required": [
+                "date_created",
+                "date_updated",
+                "type"
+              ],
+              "properties": {
+                "date_created": {
+                  "bsonType": "date"
+                },
+                "date_updated": {
+                  "bsonType": [
+                    "date",
+                    "null"
+                  ]
+                },
+                "type": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "ownership": {
+              "bsonType": "object",
+              "required": [
+                "inserted_by",
+                "edited_by",
+                "shared_with"
+              ],
+              "properties": {
+                "inserted_by": {
+                  "bsonType": "object",
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "edited_by": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "shared_with": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "object",
+                    "required": [
+                      "id",
+                      "fullname"
+                    ],
+                    "properties": {
+                      "id": {
+                        "bsonType": "objectId"
+                      },
+                      "fullname": {
+                        "bsonType": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "filter": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "rule": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "collation": {
+        "locale": "el",
+        "strength": 2
+      },
+      "validationLevel": "strict"
     }'
     )
 }

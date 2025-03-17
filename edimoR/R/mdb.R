@@ -168,6 +168,10 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     sequencing_platform <- ..getSequencingPlatforms()
     sequencing_protocol <- ..getSequencingProtocols()
     sequencing_kit <- ..getSequencingKits()
+    variant_type <- ..getVariantType()
+    variant_zygosity <- ..getVariantZygosities()
+    variant_location <- ..getVariantLocations()
+    variant_effect_snpeff <- ..getVariantEffectSnpEff()
     pathocuts <- ..getPathocuts()
     
     # Construct the data to be batch inserted
@@ -180,6 +184,10 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         sequencing_platform=sequencing_platform,
         sequencing_protocol=sequencing_protocol,
         sequencing_kit=sequencing_kit,
+        variant_type=variant_type,
+        variant_zygosity=variant_zygosity,
+        variant_location=variant_location,
+        variant_effect_snpeff=variant_effect_snpeff,
         pathocust=pathocuts
     )
     statics <- .toMongoJSON(statics,pretty=T)
@@ -195,7 +203,8 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         institutions=.defineInstitutionsCollection(),
         samples=.defineSamplesCollection(),
         analyses=.defineAnalysesCollection(),
-        variants=.defineVariantsCollection()
+        variants=.defineVariantsCollection(),
+        filters=.defineFiltersCollection()
     ))
 }
 
