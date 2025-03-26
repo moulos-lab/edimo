@@ -38,7 +38,7 @@
 
 ..getSequencingPlatforms <- function() {
     return(c("Ion Torrent S3","Ιon Torrent S5","Illumina NextSeq 2000",
-        "Ιon Torrent PGM"))
+        "Ιon Torrent PGM","Other"))
 }
 
 ..getSequencingProtocols <- function() {
@@ -62,35 +62,30 @@
             manufacturer="ThermoFisher Scientific", 
             product_id="10336014"
         ),
-
         list(
             name="Oncomine tumor specific panel HRR Pathway", 
             manufacturer="ThermoFisher Scientific", 
             product_id="10336014"
         ),
-
-        list(
-            name="Oncomine tumor specific panel HRR Pathway", 
-            manufacturer="ThermoFisher Scientific", 
-            product_id="10336014"
-        ),
-
         list(
             name="Trusight Hereditary Cancer Panel", 
             manufacturer="Illumina", 
             product_id=NULL
         ),
-
         list(
             name="Illumina DNA Prep with Exome 2.5 Enrichment", 
             manufacturer="Illumina", 
             product_id="20077595"
         ),
-
         list(
             name="QIAseq Targeted DNA Pro Human Breast Cancer Research Panel", 
             manufacturer="QIAGEN", 
             product_id="PHS-001Z"
+        ),
+        list(
+            name="Other", 
+            manufacturer="Other", 
+            product_id="Other"
         )
     ))
 }

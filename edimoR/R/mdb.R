@@ -156,8 +156,12 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
 
 .populateStatics <- function(uri) {
     # Connect to collection
-    con <- mongo(url=uri,collection="statics")
-    on.exit(con$disconnect())
+    cons <- mongo(url=uri,collection="statics")
+    coni <- mongo(url=uri,collection="institutions")
+    on.exit({
+        cons$disconnect()
+        coni$disconnect()
+    })
     
     # Get the static data
     countries <- ..getCountries()
@@ -192,7 +196,14 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     )
     statics <- .toMongoJSON(statics,pretty=T)
     
-    con$insert(statics)
+    cons$insert(statics)
+    
+    # Instututions
+    institutions = ..getInstitutions()
+    invisible(lapply(institutions,function(i) {
+        coni$insert(.toMongoJSON(i))
+    }))
+    
 }
 
 .localCollectionDef <- function() {
@@ -204,7 +215,8 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         samples=.defineSamplesCollection(),
         analyses=.defineAnalysesCollection(),
         variants=.defineVariantsCollection(),
-        filters=.defineFiltersCollection()
+        filters=.defineFiltersCollection(),
+        sessions=.defineSessionsCollection()
     ))
 }
 

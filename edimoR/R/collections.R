@@ -584,7 +584,8 @@
                 "bsonType": "object",
                 "required": [
                   "id",
-                  "name"
+                  "name",
+                  "date_completed"
                 ],
                 "properties": {
                   "id": {
@@ -592,6 +593,12 @@
                   },
                   "name": {
                     "bsonType": "string"
+                  },
+                  "date_completed": {
+                    "bsonType": [
+                      "date",
+                      "null"
+                    ]
                   }
                 }
               }
@@ -1638,6 +1645,255 @@
                 "string",
                 "null"
               ]
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "collation": {
+        "locale": "el",
+        "strength": 2
+      },
+      "validationLevel": "strict"
+    }'
+    )
+}
+
+.defineSessionsCollection <- function() {
+    return(
+    '{
+      "create": "sessions",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "name",
+            "metadata",
+            "ownership",
+            "variant_filter",
+            "variant_filter_rule",
+            "gene_filter",
+            "gene_filter_rule",
+            "table_page",
+            "analysis_id"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "objectId"
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "description": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },    )
+            "metadata": {
+              "bsonType": "object",
+              "required": [
+                "date_created",
+                "date_updated",
+                "date_loaded"
+              ],
+              "properties": {
+                "date_created": {
+                  "bsonType": "date"
+                },
+                "date_updated": {
+                  "bsonType": [
+                    "date",
+                    "null"
+                  ]
+                },
+                "date_loaded": {
+                  "bsonType": [
+                    "date",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "ownership": {
+              "bsonType": "object",
+              "required": [
+                "inserted_by",
+                "edited_by",
+                "shared_with"
+              ],
+              "properties": {
+                "inserted_by": {
+                  "bsonType": "object",
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "edited_by": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "shared_with": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "object",
+                    "required": [
+                      "id",
+                      "fullname"
+                    ],
+                    "properties": {
+                      "id": {
+                        "bsonType": "objectId"
+                      },
+                      "fullname": {
+                        "bsonType": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "variant_filter": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "variant_filter_rule": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "gene_filter": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "gene_filter_rule": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "cnv_filter": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "cnv_filter_rule": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "sv_filter": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "sv_filter_rule": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "fusion_filter": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "fusion_filter_rule": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "analysis": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "id": {
+                  "bsonType": [
+                    "objectId",
+                    "null"
+                   ]
+                },
+                "name": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "table_page": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                 "variant": {
+                   "bsonType": [
+                     "int",
+                     "null"
+                   ]
+                 },
+                 "gene": {
+                    "bsonType": [
+                     "int",
+                     "null"
+                   ]
+                 },
+                 "cnv": {
+                    "bsonType": [
+                     "int",
+                     "null"
+                   ]
+                 },
+                 "sv": {
+                    "bsonType": [
+                     "int",
+                     "null"
+                   ]
+                 },
+                 "fusion": {
+                    "bsonType": [
+                     "int",
+                     "null"
+                   ]
+                 }
+              }
             }
           },
           "additionalProperties": true

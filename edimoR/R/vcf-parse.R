@@ -88,7 +88,7 @@ annotateAndInsertVariants <- function(aid) {
         annoFile <- annotateVcf(destFile,gv=result$metadata$genome_version[1],
             aid=aid)
         
-        log_info("Retrieving chromsome list and size for analysis ",aid)
+        log_info("Retrieving chromosome list and size for analysis ",aid)
         .getGenomeSize(annoFile,sid)
         
         # TODO: In the future. vcfToList will accept one more argument according
@@ -1424,9 +1424,11 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     if (!is.null(contigs)) {
         # Derive genome size
         contigs$seq=rownames(contigs)
+        # Number of columns not stable, but these two exist
+        contigs <- contigs[,c("length","seq"),drop=FALSE]
         genomeSize <- apply(contigs,1,function(x) {
             return(list(
-                seq=x[3],
+                seq=x[2],
                 len=as.integer(x[1])
             ))
         })
