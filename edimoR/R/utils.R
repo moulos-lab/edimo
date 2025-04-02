@@ -555,7 +555,8 @@ generateConfigTemplate <- function() {
         analyses <- list(
             list(
                 id=list(`$oid`=aid),
-                name=aname
+                name=aname,
+                date_completed=unbox(Sys.time())
             )
         )
     else {
@@ -564,7 +565,7 @@ generateConfigTemplate <- function() {
             invisible(return(FALSE))
         # Otherwise add the new analysis
         analyses <- rbind(result$analyses[[1]],data.frame(id=aid,name=aname,
-            date_completed=unbox(Sys.time()))
+            date_completed=unbox(Sys.time())))
     }
     
     # Finally, update samples

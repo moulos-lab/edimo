@@ -339,7 +339,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             annotation=list(
                 genes=.getGenes(annList[[i]],geneResource),
                 variant=.getVariant(rsids[[i]],fixed$hgvsg[i],variantResource)
-            )
+            ),
+            classification=.getClassification()
         )
     })
     log_info("Done!")
@@ -498,6 +499,18 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     #cons[cons == "."] <- NA
     colnames(cons) <- tolower(gsub("dbNSFP_","",colnames(cons)))
     return(as.list(cons))
+}
+
+# Arguments will be added when auto ready
+.getClassification <- function() {
+    return(list(
+        acmg=NULL,
+        amp=NULL,
+        manual_sig=NULL,
+        manual_onc=NULL,
+        notes=NULL,
+        classified_by=NULL
+    ))
 }
 
 .getPopulation <- function(dbnsfp,gnomadExomes,gnomadGenomes) {

@@ -359,7 +359,7 @@ userResetPassword <- function(req,res) {
     # also email - system is case insensitive - log messages
     query <- .toMongoJSON(list(
         username=username,
-        email.address=email
+        emails.address=email
     ))
     
     log_debug("Querying database for user ",username,".")
@@ -391,7 +391,7 @@ userResetPassword <- function(req,res) {
     
     tryCatch({
         nr <- con$update(filterQuery,updateQuery)
-        if (nr > 0) { # Password updated
+        if (is(nr,"miniprint") && nr$modifiedCount > 0) { # Password updated
             log_info("Password for user ",username," successfully updated!")
             
             res$status <- 201

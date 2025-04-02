@@ -1044,16 +1044,34 @@
                   "bsonType": "object",
                   "properties": {
                     "minQual": {
-                      "bsonType": ["double","int"]
+                      "bsonType": [
+                        "double",
+                        "int"
+                      ]
                     },
                     "maxQual": {
-                      "bsonType": ["double","int"]
+                      "bsonType": [
+                        "double",
+                        "int"
+                      ]
                     },
                     "minDp": {
                       "bsonType": "int"
                     },
                     "maxDp": {
                       "bsonType": "int"
+                    },
+                    "minVaf": {
+                      "bsonType": [
+                        "double",
+                        "int"
+                      ]
+                    },
+                    "maxVaf": {
+                      "bsonType": [
+                        "double",
+                        "int"
+                      ]
                     }
                   }
                 },
@@ -1233,6 +1251,9 @@
                       "bsonType": "object"
                     },
                     "qual": {
+                      "bsonType": "object"
+                    },
+                    "vaf": {
                       "bsonType": "object"
                     }
                   }

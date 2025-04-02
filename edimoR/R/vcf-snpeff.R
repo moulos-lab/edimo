@@ -66,6 +66,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     # 7. SnpSift - Annotation with gnomAD genomes
     .snpSiftGnomadGenomes(vcfDir,gv)
     
+    #.snpSiftAlfa(vcfDir,gv)
+    
     # 8. SnpSift - Annotation with ClinVar and variant type
     .snpSiftClinvarVt(vcfDir,gv)
     # Analysis step 5 complete - update progress
@@ -75,6 +77,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     # allows adding further annotation steps later, e.g. ALFA.
     cp <- file.copy(
         from=file.path(vcfDir,"08_clinvar.vcf"),
+        #from=file.path(vcfDir,"09_clinvar.vcf"),
         to=file.path(vcfDir,"annotated.vcf"),
         overwrite=TRUE
     )
@@ -543,6 +546,64 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
             "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
+.snpSiftAlfa <- function(vcfDir,gv) {
+    log_info("Entering VCF file annotator - ALFA")
+    log_info("Annotating file ",file.path(vcfDir,"07_gnomad_genomes.vcf"),
+        " with ALFA frequenices, genome version is ",gv)
+
+    out <- FALSE
+    # Necessary tools
+    snpsiftData <- .getTool("snpsift")
+    snpsift <- snpsiftData$command
+    # Necessary files
+    alfa <- .getStaticFile(gv,"alfa")
+    inVcf <- file.path(vcfDir,"07_gnomad_genomes.vcf")
+    outVcf <- file.path(vcfDir,"08_alfa.vcf")
+    # dbSNFP fields
+    alfaFields <- .alfaFieldsString()
+    
+    # Construct human readbale command to display
+    humanCommand <- glue("
+    {snpsift} annotate \\\ 
+      -v {alfa} \\\ 
+      -info {alfaFields} \\\ 
+      -name ALFA_ \\\ 
+      {inVcf} > \\\ 
+      {outVcf}
+    ")
+    # Define log file - needed in args to explicitly redirect SnpSift STDERR
+    # (system2 argument does not work with Java)
+    logfile <- file.path(vcfDir,"08_alfa.log")
+    # The same args for system2 - quite verbose but we need logs
+    snpsift <- sub("^java(?: -\\S+)?(?: -jar)?\\s*","",snpsift,perl=TRUE)
+    args <- c("-Xmx4096m","-jar",snpsift,"annotate","-v",alfa,"-info",
+        alfaFields,"-name","ALFA_",inVcf,">",outVcf,"2>",logfile)
+    
+    message("Executing:\n",humanCommand)
+    out <- tryCatch({
+        suppressWarnings(system2("java",args=args))
+        TRUE
+    },error=function(e) {
+        message("Caught error: ",e$message)
+        return(FALSE)
+    },finally="")
+    
+    log_info("Exiting VCF file annotator - ALFA")
+    if (!out) {
+        cat(paste0("\nVCF SnpSift ALFA annotation finished!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
+        msg1 <- paste0("VCF file annotation failed! The error most likely ",
+            "occured during SnpEff ALFA annotation.")
+        msg2 <- paste0("The log is at ",logfile)
+        log_error(msg1)
+        log_error(msg2)
+        stop(paste(msg1,msg2,collapse="\n"))
+    }
+    else
+        cat(paste0("\nVCF SnpSift ALFA annotation failed!",
+            "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
+}
+
 .snpSiftClinvarVt <- function(vcfDir,gv) {
     log_info("Entering VCF file annotator - ClinVar and variant type")
     log_info("Annotating file ",file.path(vcfDir,"06_gnomad_genomes.vcf"),
@@ -556,6 +617,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     clinvar <- .getStaticFile(gv,"clinvar")
     inVcf <- file.path(vcfDir,"07_gnomad_genomes.vcf")
     outVcf <- file.path(vcfDir,"08_clinvar.vcf")
+    #inVcf <- file.path(vcfDir,"08_alfa.vcf")
+    #outVcf <- file.path(vcfDir,"09_clinvar.vcf")
     # dbSNFP fields
     clinvarFields <- .clinvarFieldsString()
     
@@ -571,6 +634,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     # Define log file - needed in args to explicitly redirect SnpSift STDERR
     # (system2 argument does not work with Java)
     logfile <- file.path(vcfDir,"08_clinvar.log")
+    #logfile <- file.path(vcfDir,"09_clinvar.log")
     # The same args for system2 - quite verbose but we need logs
     snpsift <- sub("^java(?: -\\S+)?(?: -jar)?\\s*","",snpsift,perl=TRUE)
     args <- c("-Xmx4096m","-jar",snpsift,"annotate","-noId","-v",clinvar,
@@ -1162,5 +1226,42 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
         "ALLELEID",
         "CLNSIG",
         "ONC"
+    ))
+}
+
+.alfaFieldsString <- function() {
+    return(paste(.getVanillaAlfaFields(),collapse=","))
+}
+
+.getVcfAlfaFields <- function() {
+    return(paste("ALFA",.getVanillaAlfaFields(),sep="_"))
+}
+
+.getVanillaAlfaFields <- function() {
+    return(c(   
+        "EUROPEAN_AF",
+        "EUROPEAN_AC",
+        "AFRICAN_OTHERS_AF",
+        "AFRICAN_OTHERS_AC",
+        "EAST_ASIAN_AF",
+        "EAST_ASIAN_AC",
+        "AFRICAN_AMERICAN_AF",
+        "AFRICAN_AMERICAN_AC",
+        "LATIN_AMERICAN_1_AF",
+        "LATIN_AMERICAN_1_AC",
+        "LATIN_AMERICAN_2_AF",
+        "LATIN_AMERICAN_2_AC",
+        "OTHER_ASIAN_AF",
+        "OTHER_ASIAN_AC",
+        "SOUTH_ASIAN_AF",
+        "SOUTH_ASIAN_AC",
+        "OTHER_AF",
+        "OTHER_AC",
+        "AFRICAN_AF",
+        "AFRICAN_AC",
+        "ASIAN_AF",
+        "ASIAN_AC",
+        "TOTAL_AF",
+        "TOTAL_AC"
     ))
 }

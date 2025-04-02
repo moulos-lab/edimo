@@ -12,6 +12,10 @@ updateAnalysisStats <- function(aid) {
         dp=list(
             low=qualRanges$minDp,
             high=qualRanges$maxDp
+        ),
+        vaf=list(
+            low=qualRanges$minVaf,
+            high=qualRanges$maxVaf
         )
     )
     
@@ -246,7 +250,9 @@ updateAnalysisStats <- function(aid) {
         minQual=0,
         maxQual=0,
         minDp=0L,
-        maxDp=0L
+        maxDp=0L,
+        minVaf=0,
+        maxVaf=0
     )
     
     # Min qual
@@ -332,6 +338,48 @@ updateAnalysisStats <- function(aid) {
     )
     if (nrow(result) > 0)
         retVal$maxDp <- result[[1]]$dp
+    
+    # Min VAF
+    minVafQuery <- list(
+        "analysis_id"=list(`$oid`=aid)
+    )
+    minVafFields <- list(
+        "_id"=0L,
+        "genotypes.af"=1L
+    )
+    minVafSort <- list(
+        "genotypes.af"=1L
+    )
+    
+    result <- con$find(
+        query=.toMongoJSON(minVafQuery),
+        fields=.toMongoJSON(minVafFields),
+        sort=.toMongoJSON(minVafSort),
+        limit=1
+    )
+    if (nrow(result) > 0)
+        retVal$minVaf <- as.numeric(result[[1]]$af)
+        
+    # Max VAF
+    maxVafQuery <- list(
+        "analysis_id"=list(`$oid`=aid)
+    )
+    maxVafFields <- list(
+        "_id"=0L,
+        "genotypes.af"=1L
+    )
+    maxVafSort <- list(
+        "genotypes.af"=-1L
+    )
+    
+    result <- con$find(
+        query=.toMongoJSON(maxVafQuery),
+        fields=.toMongoJSON(maxVafFields),
+        sort=.toMongoJSON(maxVafSort),
+        limit=1
+    )
+    if (nrow(result) > 0)
+        retVal$maxVaf <- as.numeric(result[[1]]$af)
     
     return(retVal)
 }
