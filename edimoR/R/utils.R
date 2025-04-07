@@ -564,8 +564,19 @@ generateConfigTemplate <- function() {
         if (aid %in% result$analyses[[1]]$id)
             invisible(return(FALSE))
         # Otherwise add the new analysis
-        analyses <- rbind(result$analyses[[1]],data.frame(id=aid,name=aname,
-            date_completed=unbox(Sys.time())))
+        analyses <- unname(apply(result$analyses[[1]],1,function(x) {
+            return(list(
+                id=list(`$oid`=unname(x["id"])),
+                name=unname(x["name"]),
+                date_completed=unbox(unname(as.POSIXct(x["date_completed"],
+                    format="%Y-%m-%dT%H:%M:%OS")))
+            ))
+        }))
+        analyses <- c(analyses,list(list(
+            id=list(`$oid`=aid),
+            name=aname,
+            date_completed=unbox(Sys.time())
+        )))
     }
     
     # Finally, update samples

@@ -9,9 +9,11 @@ annotateAndInsertVariants <- function(aid) {
     
     cona <- mongoConnect("analyses")
     conv <- mongoConnect("variants")
+    cons <- mongoConnect("samples")
     on.exit({
         mongoDisconnect(cona)
         mongoDisconnect(conv)
+        mongoDisconnect(cons)
     })
     
     # We assume that analysisId is checked for existence on API call so we do
@@ -57,11 +59,31 @@ annotateAndInsertVariants <- function(aid) {
     pat <- paste0("^",sid,"\\.vcf(?:\\.gz)?$")
     sampleDir <- file.path(.getAppWorkspace(),"users",uid,"samples",sid)
     sampleFile <- dir(sampleDir,pattern=pat,full.names=TRUE)[1]
-    if (length(sampleFile) == 0) {
-        msg <- paste0("The required analysis file could not be found in the ",
-            "respective directory ",sampleDir,"! Consult admin.")
-        log_error(msg)
-        stop(msg)
+    if (is.na(sampleFile)) {
+        # Is it a shared sample? Try to find the owner
+        sharedSampleQuery <- .toMongoJSON(list(
+            `_id`=list(`$oid`=sid)
+            
+        ))
+        sharedSampleFields <- .toMongoJSON(list("ownership.inserted_by"=1L))
+        sharedResult <- cons$find(sharedSampleQuery,sharedSampleFields)
+        
+        if (nrow(sharedResult) > 0) {
+            msg <- paste0("The required analysis file is shared. Looking to ",
+                "respective directory.")
+            log_info(msg)
+            sampleDir <- file.path(.getAppWorkspace(),"users",
+                sharedResult$ownership$inserted_by$id,"samples",sid)
+            sampleFile <- dir(sampleDir,pattern=pat,full.names=TRUE)[1]
+        }
+        
+        # If not there either, then fail
+        if (is.na(sampleFile)) {
+            msg <- paste0("The required analysis file could not be found in ",
+            "the respective directory ",sampleDir,"! Consult admin.")
+            log_error(msg)
+            stop(msg)
+        }
     }
     
     destFile <- file.path(analysisPath,basename(sampleFile))
@@ -79,6 +101,7 @@ annotateAndInsertVariants <- function(aid) {
     
     # 6. If properly copied, initiate analysis - individual simple log files are
     # created per analysis step
+    nsteps <- .getNoAnalysisSteps("basic")
     if (copied) {
         log_info("Initiating analysis ",aid," of type ",
             result$metadata$tertiary_protocol[1])
@@ -103,7 +126,6 @@ annotateAndInsertVariants <- function(aid) {
             aType=aType
         )
         # Analysis step 7 complete - update progress
-        nsteps <- .getNoAnalysisSteps("basic")
         .updateAnalysisProgress(aid,7,100*(7/nsteps),"Annotations")
         
         log_info("Adding analysis id ",aid)
