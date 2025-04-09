@@ -238,7 +238,8 @@ generateConfigTemplate <- function() {
         surname=surname,
         email=email
     )
-    verificationToken <- jose::jwt_encode_hmac(verificationToken,THE_SECRET)
+    verificationToken <- jose::jwt_encode_hmac(verificationToken,
+        .getApiSecret())
     #claims <- jose::jwt_decode_hmac(verificationToken,THE_SECRET)
     
     newUser <- list(
@@ -312,11 +313,11 @@ generateConfigTemplate <- function() {
 .userVerificationMail <- function(name,surname,addr,host,endpoint,token) {
     mailConf <- .CONFIG$mail
     mailBody<- .glueUserVerificationMail(name,surname,email,host,endpoint,token)
-    email <- envelope()
+    email <- emayili::envelope()
     email <- email %>%
-        from(mailConf$from) %>%
-        to(addr) %>%
-        subject("EDIMO app - Verify your email") %>%
+        emayili::from(mailConf$from) %>%
+        emayili::to(addr) %>%
+        emayili::subject("EDIMO app - Verify your email") %>%
         emayili::text(mailBody)
     smtp <- emayili::server(host=mailConf$host,
        port=mailConf$port,

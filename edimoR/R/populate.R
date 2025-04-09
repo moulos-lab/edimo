@@ -37,8 +37,9 @@
 }
 
 ..getSequencingPlatforms <- function() {
-    return(c("Ion Torrent S3","Ιon Torrent S5","Illumina NextSeq 2000",
-        "Ιon Torrent PGM","Other"))
+    return(c("Ion Torrent S3","Ιon Torrent S5","Ιon Torrent S5 XL",
+        "Ιon Torrent PGM","Illumina NextSeq 1000","Illumina NextSeq 2000",
+        "Illumina MiSeq","Other"))
 }
 
 ..getSequencingProtocols <- function() {

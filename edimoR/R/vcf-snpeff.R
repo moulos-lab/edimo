@@ -532,7 +532,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     
     log_info("Exiting VCF file annotator - gnomAD genomes")
     if (!out) {
-        cat(paste0("\nVCF SnpSift gnomAD genomes annotation finished!",
+        cat(paste0("\nVCF SnpSift gnomAD genomes annotation failed!",
             "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff gnomAD exomes annotation.")
@@ -542,7 +542,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
         stop(paste(msg1,msg2,collapse="\n"))
     }
     else
-        cat(paste0("\nVCF SnpSift gnomAD genomes annotation failed!",
+        cat(paste0("\nVCF SnpSift gnomAD genomes annotation finished!",
             "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
@@ -590,7 +590,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     
     log_info("Exiting VCF file annotator - ALFA")
     if (!out) {
-        cat(paste0("\nVCF SnpSift ALFA annotation finished!",
+        cat(paste0("\nVCF SnpSift ALFA annotation failed!",
             "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff ALFA annotation.")
@@ -600,7 +600,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
         stop(paste(msg1,msg2,collapse="\n"))
     }
     else
-        cat(paste0("\nVCF SnpSift ALFA annotation failed!",
+        cat(paste0("\nVCF SnpSift ALFA annotation finished!",
             "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
@@ -652,7 +652,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     
     log_info("Exiting VCF file annotator - ClinVar and variant type")
     if (!out) {
-        cat(paste0("\nVCF SnpSift ClinVar annotation finished!",
+        cat(paste0("\nVCF SnpSift ClinVar annotation failed!",
             "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
         msg1 <- paste0("VCF file annotation failed! The error most likely ",
             "occured during SnpEff ClinVar annotation.")
@@ -662,7 +662,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
         stop(paste(msg1,msg2,collapse="\n"))
     }
     else
-        cat(paste0("\nVCF SnpSift ClinVar annotation failed!",
+        cat(paste0("\nVCF SnpSift ClinVar annotation finished!",
             "\nThe command was:\n",humanCommand),file=logfile,append=TRUE)
 }
 
@@ -753,7 +753,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     
     # Construct human readbale command to display
     humanCommand <- glue("{bgzip} --force --decompress {vcfFile}")
-    args <- c("--force","--decompress",inVcf)
+    args <- c("--force","--decompress",vcfFile)
     
     message("Executing:\n",humanCommand)
     out <- tryCatch({
