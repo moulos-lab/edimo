@@ -637,16 +637,13 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
 
 .getTranscripts <- function(g,r) {
     g$gene_name <- NULL
-    # We may have to split as some variants (in exomes/genomes?) may have 
-    # multiple impacts joined with "&"
-    #g$impact_so <- strsplit(g$impact_so,"&")
     # Add also SO localization
     locInd <- match(g$impact_so,r$sol[,1])
     if (any(is.na(locInd))) {
         # Two cases
         # 1. There is a multi-term separated with "&"
         # 2. Indeed term does not exist
-        # Case 1 must be firstly checked and resolved
+        # Case 1 must be firstly checked and resolved        
         nas <- which(is.na(locInd))
         for (ii in nas) {
             if (grepl("&",g$impact_so[ii])) {
@@ -663,7 +660,14 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
         locInd[is.na(locInd)] <- replaceInd
     }
     g$location <- r$sol[locInd,2]
-    return(unname(apply(g,1,as.list)))
+    # We may have to split as some variants (in exomes/genomes?) may have 
+    # multiple impacts joined with "&"
+    g$impact_so <- strsplit(g$impact_so,"&")
+    return(unname(apply(g,1,function(x) {
+        if (length(x$impact_so) == 1)
+            x$impact_so = list(x$impact_so)
+        return(as.list(x))
+    })))
 }
 
 .getVariant <- function(rsid,hgvs,vr) {

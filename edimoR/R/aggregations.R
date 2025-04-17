@@ -585,6 +585,9 @@ updateAnalysisStats <- function(aid) {
             "$unwind"="$annotation.genes.transcripts"
         ),
         list(
+            "$unwind"="$annotation.genes.transcripts.impact_so"
+        ),
+        list(
             "$group"=list(
                 "_id"="$annotation.genes.transcripts.impact_so",
                 "count"=list(

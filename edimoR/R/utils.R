@@ -551,7 +551,8 @@ generateConfigTemplate <- function() {
     result <- con$find(filterQuery,fields)
     
     # Check what we have
-    if (is.na(result$analyses))
+    if (is.na(result$analyses) 
+        || (is.list(result$analyses[[1]]) && length(result$analyses[[1]])==0))
         # The first to be added
         analyses <- list(
             list(
@@ -588,6 +589,45 @@ generateConfigTemplate <- function() {
         )
     ))
     invisible(con$update(filterQuery,updateQuery))
+}
+
+.removeAnalysisFromSample <- function(sid,aid) {
+    con <- mongoConnect("samples")
+    on.exit(mongoDisconnect(con))
+    
+    # Get current analyses so as to add to them
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=sid)
+        
+    ))
+    fields <- .toMongoJSON(list(analyses=1L))
+    result <- con$find(filterQuery,fields)
+    
+    # Check what we have
+    if (is.na(result$analyses))
+        # Nothing to be removed
+        invisible(return(FALSE))
+    else {
+        # Does it exist (should be) - if not just return
+        if (aid %in% result$analyses[[1]]$id) {
+            updateQuery1 <- .toMongoJSON(list(
+                `$pull`=list(
+                    analyses.id=list(
+                        `_id`=list(`$oid`=sid)
+                    )
+                )
+            ))
+            invisible(con$update(filterQuery,updateQuery1))
+            updateQuery2 <- .toMongoJSON(list(
+                `$set`=list(
+                    metadata.date_updated=unbox(Sys.time())
+                )
+            ))
+            invisible(con$update(filterQuery,updateQuery2))
+        }
+        else
+            invisible(return(FALSE))
+    }
 }
 
 .updateAnalysisToolset <- function(aid) {
