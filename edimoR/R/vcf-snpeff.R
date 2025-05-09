@@ -66,9 +66,10 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     # 7. SnpSift - Annotation with gnomAD genomes
     .snpSiftGnomadGenomes(vcfDir,gv)
     
-    #.snpSiftAlfa(vcfDir,gv)
+    # 8. SnpSift - Annotation with ALFA
+    .snpSiftAlfa(vcfDir,gv)
     
-    # 8. SnpSift - Annotation with ClinVar and variant type
+    # 9. SnpSift - Annotation with ClinVar and variant type
     .snpSiftClinvarVt(vcfDir,gv)
     # Analysis step 5 complete - update progress
     .updateAnalysisProgress(aid,5,100*(5/nsteps),"Populations")
@@ -76,8 +77,8 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     # Finally, create a copy of the last annotated file with a fixed name. This
     # allows adding further annotation steps later, e.g. ALFA.
     cp <- file.copy(
-        from=file.path(vcfDir,"08_clinvar.vcf"),
-        #from=file.path(vcfDir,"09_clinvar.vcf"),
+        #from=file.path(vcfDir,"08_clinvar.vcf"),
+        from=file.path(vcfDir,"09_clinvar.vcf"),
         to=file.path(vcfDir,"annotated.vcf"),
         overwrite=TRUE
     )
@@ -615,10 +616,10 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     snpsift <- snpsiftData$command
     # Necessary files
     clinvar <- .getStaticFile(gv,"clinvar")
-    inVcf <- file.path(vcfDir,"07_gnomad_genomes.vcf")
-    outVcf <- file.path(vcfDir,"08_clinvar.vcf")
-    #inVcf <- file.path(vcfDir,"08_alfa.vcf")
-    #outVcf <- file.path(vcfDir,"09_clinvar.vcf")
+    #inVcf <- file.path(vcfDir,"07_gnomad_genomes.vcf")
+    #outVcf <- file.path(vcfDir,"08_clinvar.vcf")
+    inVcf <- file.path(vcfDir,"08_alfa.vcf")
+    outVcf <- file.path(vcfDir,"09_clinvar.vcf")
     # dbSNFP fields
     clinvarFields <- .clinvarFieldsString()
     
@@ -1239,29 +1240,53 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
 
 .getVanillaAlfaFields <- function() {
     return(c(   
-        "EUROPEAN_AF",
-        "EUROPEAN_AC",
-        "AFRICAN_OTHERS_AF",
-        "AFRICAN_OTHERS_AC",
-        "EAST_ASIAN_AF",
-        "EAST_ASIAN_AC",
-        "AFRICAN_AMERICAN_AF",
-        "AFRICAN_AMERICAN_AC",
-        "LATIN_AMERICAN_1_AF",
-        "LATIN_AMERICAN_1_AC",
-        "LATIN_AMERICAN_2_AF",
-        "LATIN_AMERICAN_2_AC",
-        "OTHER_ASIAN_AF",
-        "OTHER_ASIAN_AC",
-        "SOUTH_ASIAN_AF",
-        "SOUTH_ASIAN_AC",
-        "OTHER_AF",
-        "OTHER_AC",
-        "AFRICAN_AF",
-        "AFRICAN_AC",
-        "ASIAN_AF",
-        "ASIAN_AC",
-        "TOTAL_AF",
-        "TOTAL_AC"
+        "European_AF",
+        "European_AC",
+        "African_Others_AF",
+        "African_Others_AC",
+        "East_Asian_AF",
+        "East_Asian_AC",
+        "African_American_AF",
+        "African_American_AC",
+        "Latin_American_1_AF",
+        "Latin_American_1_AC",
+        "Latin_American_2_AF",
+        "Latin_American_2_AC",
+        "Other_Asian_AF",
+        "Other_Asian_AC",
+        "South_Asian_AF",
+        "South_Asian_AC",
+        "Other_AF",
+        "Other_AC",
+        "African_AF",
+        "African_AC",
+        "Asian_AF",
+        "Asian_AC",
+        "Total_AF",
+        "Total_AC"
+        #"EUROPEAN_AF",
+        #"EUROPEAN_AC",
+        #"AFRICAN_OTHERS_AF",
+        #"AFRICAN_OTHERS_AC",
+        #"EAST_ASIAN_AF",
+        #"EAST_ASIAN_AC",
+        #"AFRICAN_AMERICAN_AF",
+        #"AFRICAN_AMERICAN_AC",
+        #"LATIN_AMERICAN_1_AF",
+        #"LATIN_AMERICAN_1_AC",
+        #"LATIN_AMERICAN_2_AF",
+        #"LATIN_AMERICAN_2_AC",
+        #"OTHER_ASIAN_AF",
+        #"OTHER_ASIAN_AC",
+        #"SOUTH_ASIAN_AF",
+        #"SOUTH_ASIAN_AC",
+        #"OTHER_AF",
+        #"OTHER_AC",
+        #"AFRICAN_AF",
+        #"AFRICAN_AC",
+        #"ASIAN_AF",
+        #"ASIAN_AC",
+        #"TOTAL_AF",
+        #"TOTAL_AC"
     ))
 }

@@ -216,7 +216,9 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         analyses=.defineAnalysesCollection(),
         variants=.defineVariantsCollection(),
         filters=.defineFiltersCollection(),
-        sessions=.defineSessionsCollection()
+        sessions=.defineSessionsCollection(),
+        varstores=.defineVarstoresCollection()#,
+        #varstore_variants=.defineVarstoreVariantsCollection()
     ))
 }
 

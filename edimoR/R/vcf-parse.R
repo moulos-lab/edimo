@@ -1,3 +1,10 @@
+updateVarstoreVariants <- function(aid) {
+    # Workflow
+    # 0. Get analysis name - it should exist - user id and genome from aid
+    # 1. With an aggregation pipeline, retrieve unique variant identities
+    # 2. For each inserted variant
+}
+
 #annotateAndInsertVariants("6780e4e856bbcd63da4958f0")
 #annotateAndInsertVariants("6780f37d56bbcd63da4958f3")
 annotateAndInsertVariants <- function(aid) {
@@ -128,9 +135,10 @@ annotateAndInsertVariants <- function(aid) {
         # Analysis step 7 complete - update progress
         .updateAnalysisProgress(aid,7,100*(7/nsteps),"Annotations")
         
-        log_info("Adding analysis id ",aid)
+        log_info("Adding analysis id and text search helper",aid)
         theList <- lapply(theList,function(x) {
             x$analysis_id <- list(`$oid`=aid)
+            x$search_text <- .makeSearchText(x)
             return(x)
         })
         
@@ -325,6 +333,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
         .greedyUncompressDataFrame(info(vcf)[,.getVcfGnomadExomeFields()])
     gnomadGenomes <- 
         .greedyUncompressDataFrame(info(vcf)[,.getVcfGnomadGenomeFields()])
+    alfas <- .greedyUncompressDataFrame(info(vcf)[,.getVcfAlfaFields()])
+    alfas <- as.data.frame(do.call("cbind",lapply(alfas,as.numeric)))
     
     # Clinvar annotations
     clinvars <- .greedyUncompressDataFrame(info(vcf)[,.getVcfClinvarFields()])
@@ -357,12 +367,14 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
                 clinvars[i,,drop=FALSE]),
             conservation=.getConservation(dbnsfp[i,,drop=FALSE]),
             population=.getPopulation(dbnsfp[i,,drop=FALSE],
-                gnomadExomes[i,,drop=FALSE],gnomadGenomes[i,,drop=FALSE]),
+                gnomadExomes[i,,drop=FALSE],gnomadGenomes[i,,drop=FALSE],
+                alfas[i,,drop=FALSE]),
             annotation=list(
                 genes=.getGenes(annList[[i]],geneResource),
                 variant=.getVariant(rsids[[i]],fixed$hgvsg[i],variantResource)
             ),
-            classification=.getClassification()
+            classification=.getClassification(),
+            varstores=list()
         )
     })
     log_info("Done!")
@@ -531,11 +543,16 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
         manual_sig=NULL,
         manual_onc=NULL,
         notes=NULL,
-        classified_by=NULL
+        classified_by=NULL,
+        edited_by=NULL,
+        metadata=list(
+            date_updated=NULL,
+            notes=NULL
+        )
     ))
 }
 
-.getPopulation <- function(dbnsfp,gnomadExomes,gnomadGenomes) {
+.getPopulation <- function(dbnsfp,gnomadExomes,gnomadGenomes,alfas) {
     dbnsfpPopulNames <- .getVcfDbnsfpPopulationFields()
     dbnsfp <- dbnsfp[,dbnsfpPopulNames]
     
@@ -551,21 +568,22 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     uk10k <- dbnsfp[,grep("UK10K",colnames(dbnsfp))]
     colnames(uk10k) <- tolower(gsub("dbNSFP_UK10K_","",colnames(uk10k)))
     #uk10k[uk10k == "."] <- NA
-    alfa <- dbnsfp[,grep("ALFA",colnames(dbnsfp))]
-    colnames(alfa) <- tolower(gsub("dbNSFP_ALFA_","",colnames(alfa)))
+    #alfa <- dbnsfp[,grep("ALFA",colnames(dbnsfp))]
+    #colnames(alfa) <- tolower(gsub("dbNSFP_ALFA_","",colnames(alfa)))
     #alfa[alfa == "."] <- NA
     
     colnames(gnomadExomes) <- tolower(gsub("gnomAD_exomes_","",
         colnames(gnomadExomes)))
     colnames(gnomadGenomes) <- tolower(gsub("gnomAD_genomes_","",
         colnames(gnomadGenomes)))
+    colnames(alfas) <- tolower(gsub("ALFA_","",colnames(alfas)))
     
     return(list(
         tgp=as.list(tgp),
         exac=as.list(exac),
         esp=as.list(esp),
         uk10k=as.list(uk10k),
-        alfa=as.list(alfa),
+        alfa=as.list(alfas),
         gnomad_exomes=as.list(gnomadExomes),
         gnomad_genomes=as.list(gnomadGenomes)
     ))
@@ -772,7 +790,10 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
                 biotype=x[8],
                 exon_rank=x[9], 
                 hgvs_c=x[10], 
-                hgvs_p=x[11]
+                hgvs_p=x[11],
+                cdna_rank=x[12],
+                cds_rank=x[13],
+                aa_rank=x[14]
             ))
         })))
         # Remove duplicates based on allele and so term, this will retain 
@@ -793,10 +814,13 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             #ensembl_id=NA,
             #ensembl_type=NA,
             transcript_id=NA,
-            #biotype=NA,
+            biotype=NA,
             exon_rank=NA, 
             hgvs_c=NA, 
-            hgvs_p=NA
+            hgvs_p=NA,
+            cdna_rank=NA,
+            cds_rank=NA,
+            aa_rank=NA
         )))
     }
 }
@@ -1238,6 +1262,46 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     for (aa in names(aaMap))
         hgvs <- gsub(aa,aaMap[aa],hgvs)
     return(toupper(hgvs))
+}
+
+.makeSearchText <- function(doc) {
+    # Extract rsids - paste is robust agains length 0 arrays and NULLs
+    rsids <- paste(doc$identity$rsid,collapse=" ")
+  
+    # Construct chr:start
+    chrpos <- ""
+    if (!is.null(doc$identity$chr) && !is.null(doc$identity$start))
+        chrpos <- paste0(doc$identity$chr,":",doc$identity$start)
+  
+    # Collect gene names
+    geneNames <- paste(sapply(doc$annotation$genes,function(x) {
+        return(x$name)
+    }),collapse=" ")
+    
+    # Collect transcript information
+    txIds <- paste(lapply(doc$annotation$genes,function(x) {
+        paste(sapply(x$transcripts,function(y) {
+            return(y$transcript_id)
+        }),collapse=" ")
+    }),collapse=" ")
+    
+    impactSos <- paste(lapply(doc$annotation$genes,function(x) {
+        paste(unique(unlist(lapply(x$transcripts,function(y) {
+            return(y$impact_so)
+        }))),collapse=" ")
+    }),collapse=" ")
+    
+    hgvs <- paste(lapply(doc$annotation$genes,function(x) {
+        paste(sapply(x$transcripts,function(y) {
+            return(c(y$hgvs_c,y$hgvs_p))
+        }),collapse=" ")
+    }),collapse=" ")
+    
+    # Final concatenated text
+    searchText <- paste(c(rsids,chrpos,geneNames,txIds,impactSos,hgvs),
+        collapse=" ")
+    
+    return(trimws(searchText))
 }
 
 #.makeOneLetterHgvsp <- function(hgvs) {
