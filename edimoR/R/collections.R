@@ -2075,6 +2075,135 @@
     )
 }
 
+.defineTableviewsCollection <- function() {
+    return(
+    '{
+      "create": "table_views",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "name",
+            "columns",
+            "metadata",
+            "ownership"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "objectId"
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "description": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "columns": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "metadata": {
+              "bsonType": "object",
+              "required": [
+                "type",
+                "date_created",
+                "date_updated"
+              ],
+              "properties": {
+                "type": {
+                  "bsonType": "string"
+                },
+                "date_created": {
+                  "bsonType": "date"
+                },
+                "date_updated": {
+                  "bsonType": [
+                    "date",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "ownership": {
+              "bsonType": "object",
+              "required": [
+                "inserted_by",
+                "edited_by",
+                "shared_with"
+              ],
+              "properties": {
+                "inserted_by": {
+                  "bsonType": "object",
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "edited_by": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "shared_with": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "object",
+                    "required": [
+                      "id",
+                      "fullname"
+                    ],
+                    "properties": {
+                      "id": {
+                        "bsonType": "objectId"
+                      },
+                      "fullname": {
+                        "bsonType": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "collation": {
+        "locale": "el",
+        "strength": 2
+      },
+      "validationLevel": "strict"
+    }'
+    )
+}
+
 # Regarding backend databases, this should be added to the build scripts
 #db.disgenet_gene.createIndex({
 #   "gene_name": 1

@@ -135,12 +135,30 @@ annotateAndInsertVariants <- function(aid) {
         # Analysis step 7 complete - update progress
         .updateAnalysisProgress(aid,7,100*(7/nsteps),"Annotations")
         
-        log_info("Adding analysis id and text search helper",aid)
+        log_info("Adding analysis id and text search helper for analysis ",aid)
         theList <- lapply(theList,function(x) {
             x$analysis_id <- list(`$oid`=aid)
             x$search_text <- .makeSearchText(x)
             return(x)
         })
+        
+        log_info("Assigning variant stores to new data")
+        userVarsWithStores <- .findVariantsWithVarstores(uid)
+        if (nrow(userVarsWithStores) > 0) {
+            storeMap <- .buildVarstoreMap(userVarsWithStores)
+            theList <- lapply(theList,function(x,M) {
+                key <- .identityKey(x)
+                if (!is.null(M[[key]])) {
+                    vs <- unname(apply(M[[key]],1,as.list))
+                    vs <- lapply(vs,function(y) {
+                        y$id <- list(`$oid`=y$id)
+                        return(y)
+                    })
+                    x$varstores <- vs
+                }
+                return(x)
+            },storeMap)
+        }
         
         log_info("Inserting to database for analysis ",aid)
         #message("Inserting to database for analysis ",aid)
@@ -380,6 +398,62 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     log_info("Done!")
     #message("Done!")
     return(docs)
+}
+
+.identityKey <- function(v) {
+    return(paste0(v$identity$chr,":",v$identity$start,"_",v$identity$ref,"/",
+        v$identity$alt))
+}
+
+.findVariantsWithVarstores <- function(uid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    pipeline <- list(
+        list(
+            "$lookup"=list(
+                "from"="analyses",
+                "localField"="analysis_id",
+                "foreignField"="_id",
+                "as"="analysis"
+            )
+        ),
+        list(
+            "$unwind"="$analysis"
+        ),
+        list(
+            "$match"=list(
+                "analysis.ownership.inserted_by.id"=list(`$oid`=uid),
+                "varstores.0"=list("$exists"=TRUE)
+            )
+        ),
+        list(
+            "$project"=list(
+                "identity.chr"="$identity.chr",
+                "identity.start"="$identity.start",
+                "identity.ref"="$identity.ref",
+                "identity.alt"="$identity.alt",
+                "varstores"="$varstores"
+            )
+        )
+    )
+    
+    return(con$aggregate(.toMongoJSON(pipeline)))
+}
+
+.buildVarstoreMap <- function(docs) {
+    map <- list()
+    for (i in seq_len(nrow(docs))) {
+        v <- docs[i,]
+        key <- .identityKey(v)
+        if (is.null(map[[key]]))
+            map[[key]] <- v$varstores[[1]]
+        else {
+            map[[key]] <- rbind(map[[key]],v$varstores[[1]])
+            map[[key]] <- unique(map[[key]])
+        }           
+    }
+    return(map)
 }
 
 .makeGeneResource <- function(aType,vcfGenes) {
@@ -1578,3 +1652,23 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     #    delete_logger_index(index=1)
     #},add=TRUE)
 }
+
+#.findVariantsWithVarstores0 <- function(uid) {
+#   con <- mongoConnect("variants")
+#   on.exit(mongoDisconnect(con))
+#   
+#   query <- .toMongoJSON(list(
+#       "varstores.0"=list(
+#           "$exists"=TRUE
+#       )
+#   ))
+#   fields <- .toMongoJSON(list(
+#       "identity.chr"=1,
+#       "identity.start"=1,
+#       "identity.ref"=1,
+#       "identity.alt"=1,
+#       "varstores"=1
+#   ))
+#   
+#   return(con$find(query=query,fields=fields))
+#}
