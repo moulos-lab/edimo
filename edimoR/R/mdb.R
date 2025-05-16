@@ -180,6 +180,7 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     
     # Construct the data to be batch inserted
     statics <- list(
+        static_type="static_form_options",
         countries=countries,
         sex=sex,
         analysis_status=analysis_status,

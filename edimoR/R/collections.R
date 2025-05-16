@@ -161,7 +161,10 @@
                       ]
                     },
                     "country": {
-                      "bsonType": "string"
+                      "bsonType": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -1327,10 +1330,7 @@
         "$jsonSchema": {
           "bsonType": "object",
           "required": [
-            "_id",
-            "countries",
-            "sex",
-            "analysis_status"
+            "_id"
           ],
           "properties": {
             "_id": {

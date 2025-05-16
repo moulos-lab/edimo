@@ -209,6 +209,12 @@ generateConfigTemplate <- function() {
 }
 
 .fetchInstitutionDetails <- function(iid) {
+    if (is.null(iid) || is.na(iid) || iid == "") {
+        # Probably user auto-registering from external identifier
+        return(list(name=NA,street=NA,city=NA,state=NA,zip=NA,
+            country=NA,tel=NA))
+    }
+    
     con <- mongoConnect("institutions")
     on.exit(mongoDisconnect(con))
     
@@ -230,7 +236,7 @@ generateConfigTemplate <- function() {
     currentTime <- Sys.time()
     
     verificationToken <- jose::jwt_claim(
-        iss="edimo-app",
+        iss="edimo-vesta",
         sub=username,
         exp=Sys.time() + 86400, # Token expiry time (24 hours)
         uid=result$`_id`, # Include user's id in the JWT payload
@@ -240,7 +246,6 @@ generateConfigTemplate <- function() {
     )
     verificationToken <- jose::jwt_encode_hmac(verificationToken,
         .getApiSecret())
-    #claims <- jose::jwt_decode_hmac(verificationToken,THE_SECRET)
     
     newUser <- list(
         username=username,
@@ -297,7 +302,7 @@ generateConfigTemplate <- function() {
     return(glue(
         'Dear {name} {surname},
         
-        Thank you for registering with EDIMO APP.
+        Thank you for .userVerificationMailregistering with EDIMO APP.
         
         Please verify your email address ({email}) to activate your account
         using the following link:
@@ -317,7 +322,7 @@ generateConfigTemplate <- function() {
     email <- email %>%
         emayili::from(mailConf$from) %>%
         emayili::to(addr) %>%
-        emayili::subject("EDIMO app - Verify your email") %>%
+        emayili::subject("EDIMO VESTA - Verify your email") %>%
         emayili::text(mailBody)
     smtp <- emayili::server(host=mailConf$host,
        port=mailConf$port,
@@ -770,6 +775,11 @@ generateConfigTemplate <- function() {
             version="20240927"
         )
     ))
+}
+
+.isEmail <- function(x) {
+    regex <- "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    return(grepl(regex,x,ignore.case = TRUE))
 }
 
 multigrep <- function(v,x) {

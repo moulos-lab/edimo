@@ -4,7 +4,7 @@ userRegistrationWorkflow <- function(req,res){
     surname <- req$body$surname
     email <- tolower(req$body$email)
     password <- req$body$password
-    institution <- req$body$institution # objectId
+    institution <- req$body$institution # objectId or "" or null
     role <- req$body$role
     if (is.null(role))
         role <- "user"
@@ -52,6 +52,7 @@ userRegistrationWorkflow <- function(req,res){
     # Assuming user not exists, find institution details (if available)
     # to auto-fill user profile. The institution should exist because the list
     # in front-end is populated from the database - so no further checks.
+    # In the case of auto-registration, returns now a list of NAs
     inst <- .fetchInstitutionDetails(institution)
     
     # Insert the user into the database
@@ -98,12 +99,25 @@ userLogin <- function(req,res) {
     # Initialize connection and make sure it is closed on function end
     con <- mongoConnect("users")
     on.exit(mongoDisconnect(con))
-
+    
+    # We must be able to login with username or email, regex to decide.
     # Check if the username already exists since it's our main identifier and
     # also email - system is case insensitive - log messages
-    query <- .toMongoJSON(list(
-        username=username
-    ))
+    if (.isEmail(username)) {
+        query <- .toMongoJSON(list(
+            emails=list(
+                "$elemMatch"=list(
+                    address=username,
+                    main=TRUE
+                )
+            )
+        ))
+    }
+    else {
+        query <- .toMongoJSON(list(
+            username=username
+        ))
+    }
     
     log_debug("Querying database for user ",username,".")
     log_debug(.skipFormatter("MongoDB query is: ",query))
