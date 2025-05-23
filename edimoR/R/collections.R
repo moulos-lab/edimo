@@ -1923,6 +1923,82 @@
                    ]
                  }
               }
+            },
+            "table_search": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                 "variant": {
+                   "bsonType": [
+                     "string",
+                     "null"
+                   ]
+                 },
+                 "gene": {
+                    "bsonType": [
+                     "string",
+                     "null"
+                   ]
+                 },
+                 "cnv": {
+                    "bsonType": [
+                     "string",
+                     "null"
+                   ]
+                 },
+                 "sv": {
+                    "bsonType": [
+                     "string",
+                     "null"
+                   ]
+                 },
+                 "fusion": {
+                    "bsonType": [
+                     "string",
+                     "null"
+                   ]
+                 }
+              }
+            },
+            "table_view": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                 "variant": {
+                   "bsonType": [
+                     "array",
+                     "null"
+                   ]
+                 },
+                 "gene": {
+                    "bsonType": [
+                     "array",
+                     "null"
+                   ]
+                 },
+                 "cnv": {
+                    "bsonType": [
+                     "array",
+                     "null"
+                   ]
+                 },
+                 "sv": {
+                    "bsonType": [
+                     "array",
+                     "null"
+                   ]
+                 },
+                 "fusion": {
+                    "bsonType": [
+                     "array",
+                     "null"
+                   ]
+                 }
+              }
             }
           },
           "additionalProperties": true
@@ -1937,143 +2013,143 @@
     )
 }
 
-.defineVarstoresCollection <- function() {
-    return(
-    '{
-      "create": "varstores",
-      "validator": {
-        "$jsonSchema": {
-          "bsonType": "object",
-          "required": [
-            "_id",
-            "name",
-            "metadata",
-            "ownership"
-          ],
-          "properties": {
-            "_id": {
-              "bsonType": "objectId"
-            },
-            "name": {
-              "bsonType": "string"
-            },
-            "description": {
-              "bsonType": [
-                "string",
-                "null"
-              ]
-            },
-            "notes": {
-              "bsonType": [
-                "string",
-                "null"
-              ]
-            },
-            "metadata": {
-              "bsonType": "object",
-              "required": [
-                "date_created",
-                "date_updated",
-                "organism",
-                "genome_version"
-              ],
-              "properties": {
-                "date_created": {
-                  "bsonType": "date"
-                },
-                "date_updated": {
-                  "bsonType": [
-                    "date",
-                    "null"
-                  ]
-                },
-                "organism": {
-                  "bsonType": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "genome_vesion": {
-                  "bsonType": [
-                    "string",
-                    "null"
-                  ]
-                }
-              }
-            },
-            "ownership": {
-              "bsonType": "object",
-              "required": [
-                "inserted_by",
-                "edited_by",
-                "shared_with"
-              ],
-              "properties": {
-                "inserted_by": {
-                  "bsonType": "object",
-                  "required": [
-                    "id",
-                    "fullname"
-                  ],
-                  "properties": {
-                    "id": {
-                      "bsonType": "objectId"
-                    },
-                    "fullname": {
-                      "bsonType": "string"
-                    }
-                  }
-                },
-                "edited_by": {
-                  "bsonType": [
-                    "object",
-                    "null"
-                  ],
-                  "required": [
-                    "id",
-                    "fullname"
-                  ],
-                  "properties": {
-                    "id": {
-                      "bsonType": "objectId"
-                    },
-                    "fullname": {
-                      "bsonType": "string"
-                    }
-                  }
-                },
-                "shared_with": {
-                  "bsonType": "array",
-                  "items": {
-                    "bsonType": "object",
-                    "required": [
-                      "id",
-                      "fullname"
-                    ],
-                    "properties": {
-                      "id": {
-                        "bsonType": "objectId"
-                      },
-                      "fullname": {
-                        "bsonType": "string"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "additionalProperties": true
-        }
-      },
-      "collation": {
-        "locale": "el",
-        "strength": 2
-      },
-      "validationLevel": "strict"
-    }'
-    )
-}
+#~ .defineVarstoresCollection <- function() {
+#~     return(
+#~     '{
+#~       "create": "varstores",
+#~       "validator": {
+#~         "$jsonSchema": {
+#~           "bsonType": "object",
+#~           "required": [
+#~             "_id",
+#~             "name",
+#~             "metadata",
+#~             "ownership"
+#~           ],
+#~           "properties": {
+#~             "_id": {
+#~               "bsonType": "objectId"
+#~             },
+#~             "name": {
+#~               "bsonType": "string"
+#~             },
+#~             "description": {
+#~               "bsonType": [
+#~                 "string",
+#~                 "null"
+#~               ]
+#~             },
+#~             "notes": {
+#~               "bsonType": [
+#~                 "string",
+#~                 "null"
+#~               ]
+#~             },
+#~             "metadata": {
+#~               "bsonType": "object",
+#~               "required": [
+#~                 "date_created",
+#~                 "date_updated",
+#~                 "organism",
+#~                 "genome_version"
+#~               ],
+#~               "properties": {
+#~                 "date_created": {
+#~                   "bsonType": "date"
+#~                 },
+#~                 "date_updated": {
+#~                   "bsonType": [
+#~                     "date",
+#~                     "null"
+#~                   ]
+#~                 },
+#~                 "organism": {
+#~                   "bsonType": [
+#~                     "string",
+#~                     "null"
+#~                   ]
+#~                 },
+#~                 "genome_vesion": {
+#~                   "bsonType": [
+#~                     "string",
+#~                     "null"
+#~                   ]
+#~                 }
+#~               }
+#~             },
+#~             "ownership": {
+#~               "bsonType": "object",
+#~               "required": [
+#~                 "inserted_by",
+#~                 "edited_by",
+#~                 "shared_with"
+#~               ],
+#~               "properties": {
+#~                 "inserted_by": {
+#~                   "bsonType": "object",
+#~                   "required": [
+#~                     "id",
+#~                     "fullname"
+#~                   ],
+#~                   "properties": {
+#~                     "id": {
+#~                       "bsonType": "objectId"
+#~                     },
+#~                     "fullname": {
+#~                       "bsonType": "string"
+#~                     }
+#~                   }
+#~                 },
+#~                 "edited_by": {
+#~                   "bsonType": [
+#~                     "object",
+#~                     "null"
+#~                   ],
+#~                   "required": [
+#~                     "id",
+#~                     "fullname"
+#~                   ],
+#~                   "properties": {
+#~                     "id": {
+#~                       "bsonType": "objectId"
+#~                     },
+#~                     "fullname": {
+#~                       "bsonType": "string"
+#~                     }
+#~                   }
+#~                 },
+#~                 "shared_with": {
+#~                   "bsonType": "array",
+#~                   "items": {
+#~                     "bsonType": "object",
+#~                     "required": [
+#~                       "id",
+#~                       "fullname"
+#~                     ],
+#~                     "properties": {
+#~                       "id": {
+#~                         "bsonType": "objectId"
+#~                       },
+#~                       "fullname": {
+#~                         "bsonType": "string"
+#~                       }
+#~                     }
+#~                   }
+#~                 }
+#~               }
+#~             }
+#~           },
+#~           "additionalProperties": true
+#~         }
+#~       },
+#~       "collation": {
+#~         "locale": "el",
+#~         "strength": 2
+#~       },
+#~       "validationLevel": "strict"
+#~     }'
+#~     )
+#~ }
 
 .defineTableviewsCollection <- function() {
     return(
@@ -2203,6 +2279,245 @@
     }'
     )
 }
+
+#~ .defineStatesCollection <- function() {
+#~     return(
+#~     '{
+#~       "create": "states",
+#~       "validator": {
+#~         "$jsonSchema": {
+#~           "bsonType": "object",
+#~           "required": [
+#~             "_id",
+#~             "user_id",
+#~             "analysis_id",
+#~             "metadata",
+#~             "variant_filter",
+#~             "variant_filter_rule",
+#~             "gene_filter",
+#~             "gene_filter_rule",
+#~             "table_page",
+#~             "table_search",
+#~             "table_view"
+#~           ],
+#~           "properties": {
+#~             "_id": {
+#~               "bsonType": "objectId"
+#~             },
+#~             "user_id": {
+#~               "bsonType": "objectId"
+#~             },
+#~             "analysis_id": {
+#~               "bsonType": "objectId"
+#~             },
+#~             "metadata": {
+#~               "bsonType": "object",
+#~               "required": [
+#~                 "date_created",
+#~                 "date_updated",
+#~                 "date_loaded"
+#~               ],
+#~               "properties": {
+#~                 "date_created": {
+#~                   "bsonType": "date"
+#~                 },
+#~                 "date_updated": {
+#~                   "bsonType": [
+#~                     "date",
+#~                     "null"
+#~                   ]
+#~                 },
+#~                 "date_loaded": {
+#~                   "bsonType": [
+#~                     "date",
+#~                     "null"
+#~                   ]
+#~                 }
+#~               }
+#~             },
+#~             "variant_filter": {
+#~               "bsonType": [
+#~                 "object",
+#~                 "null"
+#~               ]
+#~             },
+#~             "variant_filter_rule": {
+#~               "bsonType": [
+#~                 "string",
+#~                 "null"
+#~               ]
+#~             },
+#~             "gene_filter": {
+#~               "bsonType": [
+#~                 "object",
+#~                 "null"
+#~               ]
+#~             },
+#~             "gene_filter_rule": {
+#~               "bsonType": [
+#~                 "string",
+#~                 "null"
+#~               ]
+#~             },
+#~             "cnv_filter": {
+#~               "bsonType": [
+#~                 "object",
+#~                 "null"
+#~               ]
+#~             },
+#~             "cnv_filter_rule": {
+#~               "bsonType": [
+#~                 "string",
+#~                 "null"
+#~               ]
+#~             },
+#~             "sv_filter": {
+#~               "bsonType": [
+#~                 "object",
+#~                 "null"
+#~               ]
+#~             },
+#~             "sv_filter_rule": {
+#~               "bsonType": [
+#~                 "string",
+#~                 "null"
+#~               ]
+#~             },
+#~             "fusion_filter": {
+#~               "bsonType": [
+#~                 "object",
+#~                 "null"
+#~               ]
+#~             },
+#~             "fusion_filter_rule": {
+#~               "bsonType": [
+#~                 "string",
+#~                 "null"
+#~               ]
+#~             },
+#~             "table_page": {
+#~               "bsonType": [
+#~                 "object",
+#~                 "null"
+#~               ],
+#~               "properties": {
+#~                  "variant": {
+#~                    "bsonType": [
+#~                      "int",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "gene": {
+#~                     "bsonType": [
+#~                      "int",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "cnv": {
+#~                     "bsonType": [
+#~                      "int",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "sv": {
+#~                     "bsonType": [
+#~                      "int",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "fusion": {
+#~                     "bsonType": [
+#~                      "int",
+#~                      "null"
+#~                    ]
+#~                  }
+#~               }
+#~             },
+#~             "table_search": {
+#~               "bsonType": [
+#~                 "object",
+#~                 "null"
+#~               ],
+#~               "properties": {
+#~                  "variant": {
+#~                    "bsonType": [
+#~                      "string",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "gene": {
+#~                     "bsonType": [
+#~                      "string",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "cnv": {
+#~                     "bsonType": [
+#~                      "string",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "sv": {
+#~                     "bsonType": [
+#~                      "string",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "fusion": {
+#~                     "bsonType": [
+#~                      "string",
+#~                      "null"
+#~                    ]
+#~                  }
+#~               }
+#~             },
+#~             "table_view": {
+#~               "bsonType": [
+#~                 "object",
+#~                 "null"
+#~               ],
+#~               "properties": {
+#~                  "variant": {
+#~                    "bsonType": [
+#~                      "array",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "gene": {
+#~                     "bsonType": [
+#~                      "array",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "cnv": {
+#~                     "bsonType": [
+#~                      "array",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "sv": {
+#~                     "bsonType": [
+#~                      "array",
+#~                      "null"
+#~                    ]
+#~                  },
+#~                  "fusion": {
+#~                     "bsonType": [
+#~                      "array",
+#~                      "null"
+#~                    ]
+#~                  }
+#~               }
+#~             }
+#~           },
+#~           "additionalProperties": true
+#~         }
+#~       },
+#~       "validationLevel": "strict"
+#~     }'
+#~     )
+#~ }
+
 
 # Regarding backend databases, this should be added to the build scripts
 #db.disgenet_gene.createIndex({

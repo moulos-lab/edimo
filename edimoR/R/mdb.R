@@ -177,6 +177,7 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     variant_location <- ..getVariantLocations()
     variant_effect_snpeff <- ..getVariantEffectSnpEff()
     pathocuts <- ..getPathocuts()
+    so_terms <- ..getSoTerms()
     
     # Construct the data to be batch inserted
     statics <- list(
@@ -193,7 +194,8 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         variant_zygosity=variant_zygosity,
         variant_location=variant_location,
         variant_effect_snpeff=variant_effect_snpeff,
-        pathocust=pathocuts
+        pathocust=pathocuts,
+        so_terms=so_terms
     )
     statics <- .toMongoJSON(statics,pretty=T)
     
@@ -219,6 +221,7 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         filters=.defineFiltersCollection(),
         sessions=.defineSessionsCollection(),
         varstores=.defineVarstoresCollection()#,
+        #states=.defineStatesCollection()#,
         #varstore_variants=.defineVarstoreVariantsCollection()
     ))
 }
