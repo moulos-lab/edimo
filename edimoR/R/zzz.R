@@ -1,7 +1,3 @@
-.onLoad <- function(libname,pkgname) {
-    # Could assume a default location for a config file here...
-}
-
 # Environment
 .CONFIG <- new.env()
 .CONFIG$databases <- 
@@ -13,3 +9,8 @@
 .CONFIG$mail <- 
 .CONFIG$software <- 
 .CONFIG$static_files <- NULL
+
+.onLoad <- function(libname,pkgname) {
+    # Could assume a default location for a config file here...
+}
+

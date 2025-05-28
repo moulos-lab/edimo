@@ -1,18 +1,32 @@
 Package: edimoR
 Type: Package
-Title: An R package to support EDIMO app backend operatins
+Title: An R package to support VESTA backend operations
 Author: Panagiotis Moulos <moulos@fleming.gr>
 Maintainer: Panagiotis Moulos <moulos@fleming.gr>
 Depends:
     R (>= 4.0.0),
     plumber,
-    mongolite
+    mongolite,
+    liteq,
+    VariantAnnotation
 Imports:
+    emayili,
+    glue,
+    jsonlite,
+    bcrypt,
+    R.utils,
+    wand,
+    jose,
+    logger,
+    promises,
+    future,
+    future.callr,
+    httr,
     parallel
 Suggests:
     rmarkdown
 Description: backend APIs and analysis pipelines for the annotation
-    of EDIMO VCF files.
+    of VESTA VCF files.
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyLoad: yes
@@ -23,8 +37,20 @@ VignetteBuilder: knitr
 Authors@R: c(person(given="Panagiotis", family="Moulos",
     email="moulos@fleming.gr", role=c("aut", "cre")))
 Version: 0.0.1
-Date: 2024-11-01
+Date: 2025-05-25
 Collate:
+    'aggregations.R'
+    'analyses.R'
+    'apis.R'
     'auth.R'
+    'collections.R'
+    'const.R'
     'mdb.R'
+    'populate.R'
+    'queue.R'
+    'samples.R'
+    'users.R'    
     'utils.R'
+    'vcf-parse.R'
+    'vcf-snpeff.R'
+    'zzz.R'

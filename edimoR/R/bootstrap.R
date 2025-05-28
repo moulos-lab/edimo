@@ -1,6 +1,6 @@
 # Load R libraries
 library(bcrypt)
-library(base64enc)
+#library(base64enc)
 library(emayili)
 #library(GA4GHclient)
 library(glue)
@@ -41,12 +41,14 @@ source("vcf-parse.R")
 source("vcf-snpeff.R")
 source("zzz.R")
 
+startVestaBackend <- function() {}
 # Otherwise Dates not inserted
 mongo_options(date_as_char=TRUE)
 
 # In a package format, zzz.R should initiate the .CONFIG environment
+conf <- "../config.json"
 initApp <- function(conf) {
-    .initConfig("../config.json")
+    .initConfig(conf)
     .initAppPaths()
     ## Write the current pid so as to be able to easily terminate
     #pidfile <- file.path(.getAppWorkspace(),".fgf.pid")
@@ -97,3 +99,9 @@ pr_apis <- plumb("apis.R")
 pr_auth <- plumb("auth.R")
 pr() %>% pr_mount("/auth",pr_auth) %>% pr_mount("/api",pr_apis) %>% 
     pr_run(host="0.0.0.0",port=8383)
+
+# Tests needed to be run at some point
+# 1. Collections created
+# 2. Users registered and other user function
+# 3. Sample uploaded
+# 4. Analysis run

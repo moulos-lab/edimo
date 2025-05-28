@@ -1,10 +1,3 @@
-updateVarstoreVariants <- function(aid) {
-    # Workflow
-    # 0. Get analysis name - it should exist - user id and genome from aid
-    # 1. With an aggregation pipeline, retrieve unique variant identities
-    # 2. For each inserted variant
-}
-
 #annotateAndInsertVariants("6780e4e856bbcd63da4958f0")
 #annotateAndInsertVariants("6780f37d56bbcd63da4958f3")
 annotateAndInsertVariants <- function(aid) {
@@ -678,15 +671,21 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
 
 .getOneGene <- function(g,r) {
     gn <- g$gene_name[1]
+    disgenet <- .formatGeneResource(gn,r,"disgenet")
+    hpo <- .formatGeneResource(gn,r,"hpo")
+    ctd <- .formatGeneResource(gn,r,"ctd")
     return(list(
         name=gn,
         ids=.formatGeneResource(gn,r,"ids"),
         omim=.formatGeneResource(gn,r,"omim"),
         omim_morbid=.formatGeneResource(gn,r,"omim_morbid"),
         cgd=.formatGeneResource(gn,r,"cgd"),
-        disgenet=.formatGeneResource(gn,r,"disgenet"),
-        hpo=.formatGeneResource(gn,r,"hpo"),
-        ctd=.formatGeneResource(gn,r,"ctd"),
+        disgenet=disgenet,
+        disgenet_length=length(disgenet),
+        hpo=hpo,
+        hpo_length=length(hpo),
+        ctd=ctd,
+        ctd_length=length(ctd),
         dbnsfp_gene=.formatGeneResource(gn,r,"dbnsfp_gene"),
         transcripts=.getTranscripts(g,r)
     ))
@@ -798,6 +797,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     
     return(list(
         disgenet=disgenet,
+        disgenet_length=ifelse(is.na(disgenet),0,length(disgenet)[1]),
         pharmgkb=pharmgkb,
         oncokb=oncokb,
         civic=civic
@@ -1652,23 +1652,3 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     #    delete_logger_index(index=1)
     #},add=TRUE)
 }
-
-#.findVariantsWithVarstores0 <- function(uid) {
-#   con <- mongoConnect("variants")
-#   on.exit(mongoDisconnect(con))
-#   
-#   query <- .toMongoJSON(list(
-#       "varstores.0"=list(
-#           "$exists"=TRUE
-#       )
-#   ))
-#   fields <- .toMongoJSON(list(
-#       "identity.chr"=1,
-#       "identity.start"=1,
-#       "identity.ref"=1,
-#       "identity.alt"=1,
-#       "varstores"=1
-#   ))
-#   
-#   return(con$find(query=query,fields=fields))
-#}
