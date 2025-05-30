@@ -153,6 +153,82 @@ uploadVcfFile <- function(res,req,sid,uid) {
     }
 }
 
+downloadVcfFile <- function(res,req,sid,uid) {
+    # Initialize connection and make sure it is closed on function end
+    con <- mongoConnect("samples")
+    on.exit(mongoDisconnect(con))
+
+    # First we check if the user exists
+    if (!is.null(uid) && !.checkId(uid,"user")) {
+        msg <- paste0("User id (uid) ",uid," does not exist in the database!")
+        log_error(msg)
+        stop(msg)
+    }
+    # Also if the sample to associate the VCF file with exists
+    if (!is.null(sid) && !.checkId(sid,"sample")) {
+        msg <- paste0("Sample id (sid) ",sid," does not exist in the database!")
+        log_error(msg)
+        stop(msg)
+    }
+    
+    # Get the running user name, existence validated
+    uname <- .getUserName(uid)
+    
+    # Since the sample exists, get the required information to locate and
+    # serve the file
+    query <- .toMongoJSON(list(
+        `_id`=list(`$oid`=sid)
+    ))
+    fields <- .toMongoJSON(list(
+        `_id`=1L,
+        files=1L,
+        metadata.file_type=1L,
+        metadata.original_names=1L,
+        ownership.inserted_by=1L
+    ))
+    
+    log_debug("Fetching information for sample ",sid,".")
+    log_debug(.skipFormatter("MongoDB query is: ",query))
+    
+    # The sample exists as has been checked above, we don't use uid as a shared
+    # sample may have been requested for download.
+    result <- con$find(query,fields=fields)
+    samplePath <- file.path(.getAppWorkspace(),"users",
+        result$ownership$inserted_by$id,"samples",sid)
+    currentFile <- file.path(samplePath,result$files[[1]])
+    
+    if (!file.exists(currentFile)) {
+        log_error("No VCF file found for sample ",sid,"! #USER: ",uname)
+        
+        res$status <- 404
+        return(list(error="No VCF file found for sample ",sid,"!"))
+    }
+        
+    # If all good so far, return something
+    compression <- grepl("[.](gz|bz2|xz)$",currentFile)
+    mimeType <- if (compression) "application/gzip" else "text/plain"
+    
+    ## We return base64 content as well as filename. View or download is handled
+    ## in the client.
+    #res$status = 200
+    #return(list(vcf=dataURI(file=currentFile,mime=mimeType),
+    #    name=result$metadata$original_names[[1]],mime=mimeType))
+    ## This is too slow...
+    
+    # base64 slow... Try attachment
+    res$setHeader("Content-Type",mimeType)
+    res$setHeader("Content-Disposition",paste0("attachment; filename=\"",
+        result$metadata$original_names[[1]],"\""))
+    if (mimeType == "text/plain")
+        include_file(currentFile,res)
+    else {
+        # The only way to return binary, answer from Gemini
+        res$body <- readBin(currentFile,what="raw",
+            n=file.info(currentFile)$size)
+        res
+    }
+}
+
 deleteSampleFiles <- function(res,req,sid,uid) {
     # Initialize connection and make sure it is closed on function end
     con <- mongoConnect("users")

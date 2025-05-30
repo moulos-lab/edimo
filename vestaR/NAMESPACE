@@ -4,8 +4,12 @@ import(mongolite)
 import(plumber)
 import(VariantAnnotation)
 
+importFrom("base64enc",dataURI)
+
 importFrom("bcrypt",checkpw)
 importFrom("bcrypt",hashpw)
+
+importFrom("callr",r_bg)
 
 importFrom("glue",glue)
 
@@ -20,6 +24,8 @@ importFrom("jsonlite",toJSON)
 importFrom("jose",jwt_claim)
 importFrom("jose",jwt_decode_hmac)
 importFrom("jose",jwt_encode_hmac)
+
+importFrom("magrittr","%>%")
 
 importFrom("promises",future_promise)
 importFrom("promises",then)

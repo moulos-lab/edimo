@@ -21,6 +21,14 @@ function(res,req,sid,uid) {
     return(uploadVcfFile(res,req,sid,uid))
 }
 
+#* Download VCF file
+#* @param sid The sample id to associate with
+#* @param uid The running user id (can be null)
+#* @get /vcfdownload
+function(res,req,sid,uid) {
+    return(downloadVcfFile(res,req,sid,uid))
+}
+
 #* Delete sample
 #* @param sid The sample id to associate with
 #* @param uid The running user id (can be null)
