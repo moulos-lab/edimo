@@ -777,6 +777,10 @@ generateConfigTemplate <- function() {
     ))
 }
 
+.isObjectId <- function(x) {
+  return(grepl("^[a-fA-F0-9]{24}$",x))
+}
+
 .isEmail <- function(x) {
     regex <- "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
     return(grepl(regex,x,ignore.case = TRUE))

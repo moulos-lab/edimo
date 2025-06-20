@@ -39,13 +39,14 @@ source("users.R")
 source("utils.R")
 source("vcf-parse.R")
 source("vcf-snpeff.R")
+source("export.R")
 source("zzz.R")
 
 conf <- "../config.json"
 
 startVesta <- function(conf) {
     # Otherwise Dates not inserted
-    mongo_options(date_as_char=TRUE)
+    invisible(mongo_options(date_as_char=TRUE))
     
     # Init universe
     initApp(conf)

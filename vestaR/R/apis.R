@@ -52,3 +52,36 @@ function(res,req,typ,aid,uid) {
 function(res,req,aid,uid) {
     return(deleteAnalysisFiles(res,req,aid,uid))
 }
+
+#~ #* Download TSV file for analysis
+#~ #* @param aid The analysis id to fetch variants
+#~ #* @param uid The running user id (can be null)
+#~ #* @get /tsvdownload
+#~ function(res,req,sid,uid) {
+#~     return(downladAnalysisTsv(res,req,aid,uid))
+#~ }
+
+#* Download TSV file for specific variants
+#* @parser json list(simplifyVector = FALSE)
+#* @post /vardownload
+function(res,req) {
+    return(downladVariants(res,req))
+}
+
+#~ #* Test 
+#~ #* @parser json list(simplifyVector = FALSE)
+#~ #* @post /quetest
+#~ function(req, res) {
+#~   # Parse JSON from the request body
+#~   que <- req$body$que
+  
+#~   oid <- .extractObjectId(que$analysis_id)
+#~   que$analysis_id <- list(`$oid`=oid)
+  
+#~   #que$analysis_id <- .replaceObjectIds(que$analysis_id)
+#~   que <- .toMongoJSON(que,pretty=T)
+  
+#~   #que <- .replaceObjectIds(que)
+#~   #que <- .replaceObjectIds(.toMongoJSON(z,pretty=T))
+#~   print(que)
+#~ }

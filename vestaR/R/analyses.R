@@ -47,7 +47,7 @@ runAnalysis <- function(req,res,typ,aid,uid) {
         
     else {
         log_error("Failed to schedule job for analysis ",aid,"! Check logs")
-                
+
         res$status <- 500
         return(list(error="Failed to schedule analysis job! in database"))
     }
@@ -100,3 +100,85 @@ deleteAnalysisFiles <- function(res,req,aid,uid) {
         return(list(error="Failed to delete analysis files from server."))
     })
 }
+
+downladVariants <- function(res,req) {
+    # Incoming data from request body
+    aid <- req$body$aid
+    vid <- req$body$vid
+    que <- req$body$que
+    groups <- unlist(req$body$groups)
+    fields <- unlist(req$body$fields)
+    canonical <- req$body$canonical
+    form <- req$body$file_format
+    uid <- req$body$uid
+    
+    # First we check if the user exists
+    if (!is.null(uid) && !.checkId(uid,"user")) {
+        msg <- paste0("User id (uid) ",uid," does not exist in the database!")
+        log_error(msg)
+        #stop(msg)
+        res$status <- 400
+        return(list(error=msg))
+    }
+    # Also if the analysis exists - probably overkill
+    if (!is.null(aid) && !.checkId(aid,"analysis")) {
+        msg <- paste0("Analysis id (aid) ",aid," does not exist in the ",
+            "database!")
+        log_error(msg)
+        #stop(msg)
+        res$status <- 400
+        return(list(error=msg))
+    }
+    
+    # Get the running user name, existence validated
+    uname <- .getUserName(uid)
+    
+    # Only one of aid, vid or que can be provided - respond early
+    checkMain <- c(!is.null(aid),!is.null(vid),!is.null(que))
+    if (length(which(checkMain)) > 1) {
+        err <- paste0("Only one of analysis id, variant ids vector or MongoDB ",
+            "query (que) can be provided!")
+        log_error(err)
+        
+        res$status <- 500
+        return(list(error=err))
+    }
+    
+    # If a query has been passed, sanitize it
+    if (!is.null(que) && !is.null(que$analysis_id)) {
+        oid <- .extractObjectId(que$analysis_id)
+        que$analysis_id <- list(`$oid`=oid)
+    }
+    if (!is.null(groups) && length(groups) == 1 && groups == "all")
+        groups <- .mongoVariantFieldGroupNames()
+    if (!is.null(fields) && length(fields) == 1 && fields == "all")
+        fields <- .mongoVariantFields()
+    
+    tryCatch({
+        log_info("Preparing download file for analysis ",aid," #USER: ",uname)
+        theFile <- exportVariants(aid=aid,vid=vid,que=que,groups=groups,
+            fields=fields,outFormat=form,canonical=canonical)
+        
+        # Add a suffix depnding on what is required
+        suf <- ifelse(is.null(aid),"_filtered","_all")
+        # ...and decide on prefix (analysis id, oid exists already)
+        pre <- ifelse(is.null(aid),oid,aid)
+        
+        # Proper headers to send as binary attachment to appsmith
+        res$setHeader("Access-Control-Expose-Headers","Content-Disposition")
+        res$setHeader("Content-Type","application/x-gzip")
+        res$setHeader("Content-Disposition",paste0('attachment; filename="',
+            pre,suf,'.',form,'.gz"'))
+            
+        # The only way to return binary, answer from Gemini
+        log_info("Sending requested file for analysis ",aid," #USER: ",uname)
+        res$body <- readBin(theFile,what="raw",n=file.info(theFile)$size)
+        res
+    },error=function(e) {
+        log_error("File creation failed: ",e$message," #USER: ",uname)
+        
+        res$status <- 500
+        return(list(error=paste0("File creation failed: ",e$message)))
+    })
+}
+
