@@ -190,7 +190,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
         # one annotation.genes field and one annotation.genes.transcripts field
         if (!any(.geneNestFields() %in% fields)) {
             msg <- paste0("At least one 'annotation_genes_*' field is ",
-                "necessary for constructing proper output! Adding them...")
+                "necessary for constructing proper output! Adding it...")
             log_warn(msg)
             warning(msg,immediate.=TRUE)
             fields <- c(fields,"annotation_genes_name")
@@ -229,10 +229,6 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                     fields <- c(fi,fields)
             }
         }
-        
-        # Remove identity end, it will cause problems...
-        if (outFormat == "vcf" && "identity_end" %in% fields)
-            fields <- fields[-which(fields)=="identity_end"]
     }
     
     # OK, checks done... Proceed...
@@ -328,12 +324,21 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
     
     # Final names from projection as we have several merged fields
     exportNames <- names(thePipeline[[4]]$`$project`)
+    # Remove identity end, it will cause problems...
+    if ("identity_end" %in% exportNames)
+        exportNames <- exportNames[-which(exportNames=="identity_end")]
     
     # Construct the output (TODO: add some logs)
     
     # 1. VCF header object
     
     # 1.1. metadata and sample name in header
+    if (is.null(aid)) {
+        if (is.null(vid)) # que cannot be NULL from upstream
+            aid <- que$analysis_id$`$oid`
+        else if (is.null(que)) # vid provided, more comples...
+            aid <- .analysisIdFromVariantId(vid[1])
+    }
     vcfMeta <- .makeVcfMeta(aid)
     sn <- vcfMeta[["_sample"]][1,1]
     vcfMeta[["_sample"]] <- NULL
@@ -350,19 +355,18 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
     if (genoNames[1] != "genotypes_gn") {
         jj <- which(genoNames=="genotypes_gn")
         if (length(jj) > 0)
-            genoNames[jj] <- NULL
+            genoNames <- genoNames[-jj]
         genoNames <- c("genotypes_gn",genoNames)
     }
     # Remove special gene and variant fields to be collapsed from infoNames,
     # they will be replaced
-    funcGeneInd <- match(.funcGeneFields(),infoNames)
-    funcVarInd <- match(.funcVarFields(),infoNames)
+    funcGeneInd <- match(.funcGeneFields(),exportNames)
+    funcVarInd <- match(.funcVarFields(),exportNames)
     funcGeneInd <- funcGeneInd[!is.na(funcGeneInd)]
     funcVarInd <- funcVarInd[!is.na(funcVarInd)]
     
     # All the rest should be info names
-    infoNames <- exportNames[-c(idInd,genoInd,specialInd,funcGeneInd,
-        funcVarInd)]
+    infoNames <- exportNames[-c(idInd,genoInd,funcGeneInd,funcVarInd)]
     
     # 1.3. INFO (info) in header
     infoHeaders <- do.call("rbind",.availableMongoVcfHeaders()[infoNames])
@@ -375,10 +379,10 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
         funcGeneHeader <- .funcGeneAnnHeader(exportNames)
     else
         funcGeneHeader <- DataFrame()
-    if (length(funcVarInd) > 0) # Should be
+    if (length(funcVarInd) > 0) # Not necessarily
         funcVarHeader <- .funcVarAnnHeader(exportNames)
     else
-        funcGeneHeader <- DataFrame()
+        funcVarHeader <- DataFrame()
     infoHeaders <- rbind(infoHeaders,funcGeneHeader,funcVarHeader)
     
     # 1.6. Initialize VCFHeader, add also fixed (FILTER)
@@ -395,7 +399,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
     
     # 2. VCF data
     
-    # 2.1. Ranged data
+    # 2.1. Ranged data - coordinates
     coords <- GRanges(
         seqnames=canoResult$identity_chr,
         ranges=IRanges(
@@ -404,7 +408,129 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
         )
     )
     refs <- DNAStringSet(canoResult$identity_ref)
-    alts <- DNAStringSet(canoResult$identity_alt)
+    alts <- DNAStringSetList(lapply(canoResult$identity_alt,function(x) {
+        return(DNAStringSet(x))
+    }))
+    
+    # 2.2. Fixed data - alleles
+    mcols(coords) <- fixed <- DataFrame(
+        REF=refs,
+        ALT=alts,
+        QUAL=canoResult$metrics_qual,
+        FILTER=rep("PASS",nrow(canoResult))
+    )
+    names(coords) <- rownames(fixed) <- canoResult$identity_rsid
+    
+    # 2.3. Info...........
+    # 2.3.1. Main variant info fields
+    # Original infoNames variable contains all other info-like fields to be
+    # added apart from functional annotations
+    infoValues <- DataFrame(canoResult[,infoNames],row.names=NULL)
+    # infoHeaders is aligned with infoNames, apart from functional annotation
+    # fields, so the colnames of infoValues will be the rownames of infoHeaders
+    # minus the last two
+    namInfo <- rownames(infoHeaders)
+    if ("VESTA_FUNC_GENE_ANN" %in% namInfo)
+        namInfo <- namInfo[-which(namInfo=="VESTA_FUNC_GENE_ANN")]
+    if ("VESTA_FUNC_VAR_ANN" %in% namInfo)
+        namInfo <- namInfo[-which(namInfo=="VESTA_FUNC_VAR_ANN")]
+    names(infoValues) <- namInfo
+    
+    # 2.3.2. Functional gene and variant info fields
+    # The fields to be collapsed... Genes/transcripts
+    geneAnnNames <- intersect(.funcGeneFields(),exportNames)
+    varAnnNames <- intersect(.funcVarFields(),exportNames)
+    # geneAnnNames cannot be empty, we do not allow it from upstream
+    # varAnnNames may be empty
+
+    # Get a shorter version of the data frame to collapse
+    geneAnnToBeCollapsed <- result[,geneAnnNames,drop=FALSE]
+    # ...and split per variant (f defined above in the beginning)
+    splitted <- split(geneAnnToBeCollapsed,f)
+    # Each instance of split is a data frame where we must:
+    # 1) Collapse the contents of each line separated by " | "
+    # 2) Collapse the lines, separated by ^^^
+    # 3) Assign the name VESTA_FUNC_GENE_ANN
+    # Above extremely verbose, need more compact...
+    # Suggestion:
+    # gene1 | t1;t2;t3 | so1;so2;s3 | snpeff1;snpeff2;snpeff3 |
+    # bio1;bio2;bio3 | ex1;ex2;ex3 | hgc1;hgc2;hgc3 | 
+    # hgp1;hgp2;hgp3 | loc1;loc2;loc3 | cdna1;cdna2;cdna3 |
+    # cds1;cds2;cds3 | aa1;aa2;aa3 | ids1;ids2 | omim1;omim2 |
+    # cgd | disgenet | hpo | ctd
+    # gene2 | t1;t2;t3 | so1;so2;s3 | snpeff1;snpeff2;snpeff3 |
+    # bio1;bio2;bio3 | ex1;ex2;ex3 | hgc1;hgc2;hgc3 | 
+    # hgp1;hgp2;hgp3 | loc1;loc2;loc3 | cdna1;cdna2;cdna3 |
+    # cds1;cds2;cds3 | aa1;aa2;aa3 | ids1;ids2 | omim1;omim2 |
+    # cgd | disgenet | hpo | ctd
+    # For now we stick with vebose...
+    tmpGen <- lapply(splitted,function(x) {
+        if (canonical)
+            x <- x[1,,drop=FALSE]
+        x[is.na(x)] <- "."
+        x[x==""] <- "."
+        y <- apply(x,1,paste,collapse="|")
+        y <- paste(y,collapse="^^^")
+        # Replace any remaining ;s...
+        return(gsub(";","+",y))
+    })
+    funcAnnGenes <- unlist(tmpGen,use.names=FALSE)
+    funcAnnGenes <- DataFrame(VESTA_FUNC_GENE_ANN=funcAnnGenes)
+    
+    # Now variant functional annotations
+    if (length(varAnnNames) > 0) {
+        varAnnToBeCollapsed <- canoResult[,varAnnNames,drop=FALSE]
+        varAnnToBeCollapsed[is.na(varAnnToBeCollapsed)] <- "."
+        varAnnToBeCollapsed[varAnnToBeCollapsed==""] <- "."
+        tmpVar <- apply(varAnnToBeCollapsed,1,paste,collapse="|")
+        funcAnnVars <- unlist(tmpVar,use.names=FALSE)
+        funcAnnVars <- DataFrame(VESTA_FUNC_VAR_ANN=funcAnnVars)
+        # Final INFO values
+        infoValues <- cbind(infoValues,funcAnnGenes,funcAnnVars)
+    }
+    else
+        infoValues <- cbind(infoValues,funcAnnGenes)
+    rownames(infoValues) <- names(coords)
+    
+    # 2.4. Genotypes
+    genos <- lapply(canoResult[,genoNames],function(x) {
+        x <- as.matrix(x)
+        rownames(x) <- names(coords)
+        return(x)
+    })
+    names(genos) <- rownames(genoHeaders)
+    genos <- SimpleList(genos)
+    
+    # 2.5. Construct?
+    vcf <- VCF(
+        rowRanges=coords,
+        colData=DataFrame(Samples=1L,row.names=sn),
+        exptData=list(header=vcfHeader),
+        fixed=fixed,
+        info=infoValues,
+        geno=genos
+    )
+    # For some reason, we may end up with unsorted VCF, order just in case...
+    vcf <- vcf[order(seqnames(vcf),start(vcf))]
+    
+    # Write!
+    #writeVcf(vcf,file="test.vcf",index=TRUE)
+    
+    # Define output file
+    if (is.null(outFile))
+        outFile <- tempfile()
+    
+    # Do we have results? If not, write an almost empty file
+    if (nrow(result) == 0) {
+        writeLines("No variants found.",outFile)
+        return(outFile)
+    }
+    else {
+        # Will be .bgz
+        outf <- paste0(outFile,".bgz")
+        writeVcf(vcf,file=outFile,index=TRUE)
+        return(outf)
+    }
 }
 
 .prepareExportPipeline <- function(aid,vid,que,groups,fields) {
@@ -808,7 +934,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                     `$cond`=list(
                       list(`$eq`=list("$$value", "")),
                       "$$this",
-                      list(`$concat`=list("$$value", ", ", "$$this"))
+                      list(`$concat`=list("$$value", " + ", "$$this"))
                     )
                   )
                 )
@@ -860,12 +986,12 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                                 `if`=list(`$eq`=list("$$value", "")),
                                 `then`=list(
                                     `$concat`=list(
-                                        "$$this.id",": ","$$this.name"
+                                        "$$this.id","~","$$this.name"
                                     )
                                 ),
                                 `else`=list(
                                     `$concat`=list(
-                                        "$$value","; ","$$this.id",": ",
+                                        "$$value"," + ","$$this.id","~",
                                         "$$this.name"
                                     )
                                 )
@@ -891,13 +1017,23 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                                 `if`=list(`$eq`=list("$$value", "")),
                                 `then`=list(
                                     `$concat`=list(
-                                        "$$this.id",": ","$$this.name"
+                                        list(
+                                            `$replaceAll`=list(
+                                                input="$$this.id",find=":",
+                                                    replacement=""
+                                                )
+                                            ),"~","$$this.name"
                                     )
                                 ),
                                 `else`=list(
                                     `$concat`=list(
-                                        "$$value","; ","$$this.id",": ",
-                                        "$$this.name"
+                                        "$$value"," + ",
+                                        list(
+                                            `$replaceAll`=list(
+                                                input="$$this.id",
+                                                find=":",replacement=""
+                                            )
+                                        ),"~","$$this.name"
                                     )
                                 )
                             )
@@ -922,12 +1058,12 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                                 `if`=list(`$eq`=list("$$value", "")),
                                 `then`=list(
                                     `$concat`=list(
-                                        "$$this.id",": ","$$this.name"
+                                        "$$this.id","~","$$this.name"
                                     )
                                 ),
                                 `else`=list(
                                     `$concat`=list(
-                                        "$$value","; ","$$this.id",": ",
+                                        "$$value"," + ","$$this.id","~",
                                         "$$this.name"
                                     )
                                 )
@@ -953,12 +1089,12 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                             `if`=list(`$eq`=list("$$value", "")),
                             `then`=list(
                                 `$concat`=list(
-                                    "$$this.id",": ","$$this.name"
+                                    "$$this.id","~","$$this.name"
                                 )
                             ),
                             `else`=list(
                                 `$concat`=list(
-                                    "$$value","; ","$$this.id",": ",
+                                    "$$value"," + ","$$this.id","~",
                                     "$$this.name"
                                 )
                             )
@@ -991,7 +1127,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                             ),
                             `else`=list(
                                 `$concat`=list(
-                                    "$$value","; ",
+                                    "$$value"," + ",
                                     "$$this.pharmgkb_id",
                                     " with LOE ",
                                     "$$this.level_of_evidence"
@@ -1023,7 +1159,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                                         as="c",
                                         `in`=list(
                                             `$concat`=list(
-                                                "$$c.pharmgkb_id",": ",
+                                                "$$c.pharmgkb_id","~",
                                                 "$$c.chemical_name"
                                             )
                                         )
@@ -1041,7 +1177,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                                             ),
                                             `then`="$$this",
                                             `else`=list(
-                                                `$concat`=list("$$value","; ",
+                                                `$concat`=list("$$value"," + ",
                                                     "$$this")
                                             )
                                         )
@@ -1073,7 +1209,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                                         input="$$this.phenotypes",
                                         as="p",
                                         `in`=list(
-                                            `$concat`=list("$$p.id", ": ", 
+                                            `$concat`=list("$$p.id","~", 
                                                 "$$p.name")
                                         )
                                     )
@@ -1088,7 +1224,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                                             `if`=list(`$eq`=list("$$value","")),
                                             `then`="$$this",
                                             `else`=list(
-                                                `$concat`=list("$$value","; ",
+                                                `$concat`=list("$$value"," + ",
                                                     "$$this")
                                             )
                                         )
@@ -1142,7 +1278,8 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
                         `$cond`=list(
                             `if`=list(`$eq`=list("$$value", "")),
                             `then`="$$this",
-                            `else`=list(`$concat`=list("$$value",", ","$$this"))
+                            `else`=list(`$concat`=list("$$value"," + ",
+                                "$$this"))
                         )
                     )
                 )
@@ -1209,16 +1346,6 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
     return(c(
         "annotation_genes_name",
         "annotation_genes_ids",
-        "annotation_genes_omim",
-        "annotation_genes_omim_morbid",
-        "annotation_genes_cgd_condition",
-        "annotation_genes_cgd_inheritance",
-        "annotation_genes_disgenet_id",
-        "annotation_genes_disgenet_name",
-        "annotation_genes_hpo_id",
-        "annotation_genes_hpo_name",
-        "annotation_genes_ctd_id",
-        "annotation_genes_ctd_name",
         "annotation_genes_transcripts_transcript_id",
         "annotation_genes_transcripts_impact_so",
         "annotation_genes_transcripts_impact_snpeff",
@@ -1230,6 +1357,16 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
         "annotation_genes_transcripts_cdna_rank",
         "annotation_genes_transcripts_cds_rank",
         "annotation_genes_transcripts_aa_rank",
+        "annotation_genes_omim",
+        "annotation_genes_omim_morbid",
+        "annotation_genes_cgd_condition",
+        "annotation_genes_cgd_inheritance",
+        "annotation_genes_disgenet_id",
+        "annotation_genes_disgenet_name",
+        "annotation_genes_hpo_id",
+        "annotation_genes_hpo_name",
+        "annotation_genes_ctd_id",
+        "annotation_genes_ctd_name",
         "annotation_genes_disgenet",
         "annotation_genes_hpo",
         "annotation_genes_ctd"
@@ -2189,15 +2326,6 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
     ))
 }
 
-# Fixed VCF fields and map to mongo
-# identity_chr
-# identity_start
-# identity_ref
-# identity_alt
-# identity_rsid (collapsed)
-# metrics_qual
-# FILTER should always be pass or .
-
 .availableMongoVcfHeaders <- function() {
     return(list(
         identity_type=DataFrame(
@@ -2250,7 +2378,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
             Number="1",
             Type="String",
             Description="Genotype - VCF notation",
-            row.names="GN"
+            row.names="GT"
         ),
         genotypes_gtn=DataFrame(
             Number="1",
@@ -3442,33 +3570,13 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
 }
 
 .funcGeneAnnHeader <- function(fields) {
-    desc <- "VESTA functional annotations:"
+    desc <- "VESTA functional annotations: "
     
     # Standard fields (we may neved have to use some of them)
     if ("annotation_genes_name" %in% fields)
         desc <- c(desc,"gene name")
     if ("annotation_genes_ids" %in% fields)
         desc <- c(desc,"comma separated gene ids")
-    if ("annotation_genes_omim" %in% fields)
-        desc <- c(desc,"omim ids")
-    if ("annotation_genes_omim_morbid" %in% fields)
-        desc <- c(desc,"omim morbid ids")
-    if ("annotation_genes_cgd_condition" %in% fields)
-        desc <- c(desc,"CGD conditions")
-    if ("annotation_genes_cgd_inheritance" %in% fields)
-        desc <- c(desc,"CGD inheritance scenarios")
-    if ("annotation_genes_disgenet_id" %in% fields)
-        desc <- c(desc,"DisGeNET UMLS id")
-    if ("annotation_genes_disgenet_name" %in% fields)
-        desc <- c(desc,"DisGeNET disease name")
-    if ("annotation_genes_hpo_id" %in% fields)
-        desc <- c(desc,"HPO accession")
-    if ("annotation_genes_hpo_name" %in% fields)
-        desc <- c(desc,"HPO name")
-    if ("annotation_genes_ctd_id" %in% fields)
-        desc <- c(desc,"CTD accession")
-    if ("annotation_genes_ctd_name" %in% fields)
-        desc <- c(desc,"CTD chemical name")
     if ("annotation_genes_transcripts_transcript_id" %in% fields)
         desc <- c(desc,"transcript id")
     if ("annotation_genes_transcripts_impact_so" %in% fields)
@@ -3489,6 +3597,26 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
         desc <- c(desc,"cDNA position/cDNA length")
     if ("annotation_genes_transcripts_cds_rank" %in% fields)
         desc <- c(desc,"CDS position/CDS length")
+    if ("annotation_genes_omim" %in% fields)
+        desc <- c(desc,"omim ids")
+    if ("annotation_genes_omim_morbid" %in% fields)
+        desc <- c(desc,"omim morbid ids")
+    if ("annotation_genes_cgd_condition" %in% fields)
+        desc <- c(desc,"CGD conditions")
+    if ("annotation_genes_cgd_inheritance" %in% fields)
+        desc <- c(desc,"CGD inheritance scenarios")
+    if ("annotation_genes_disgenet_id" %in% fields)
+        desc <- c(desc,"DisGeNET UMLS id")
+    if ("annotation_genes_disgenet_name" %in% fields)
+        desc <- c(desc,"DisGeNET disease name")
+    if ("annotation_genes_hpo_id" %in% fields)
+        desc <- c(desc,"HPO accession")
+    if ("annotation_genes_hpo_name" %in% fields)
+        desc <- c(desc,"HPO name")
+    if ("annotation_genes_ctd_id" %in% fields)
+        desc <- c(desc,"CTD accession")
+    if ("annotation_genes_ctd_name" %in% fields)
+        desc <- c(desc,"CTD chemical name")
     
     # Extended fields (from merging some of them to single string through the
     # aggregation pipeline)
@@ -3502,7 +3630,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
     return(DataFrame(
         Number=".",
         Type="String",
-        Description=paste(desc,collapse=" | "),
+        Description=paste0(desc[1],paste(desc[2:length(desc)],collapse=" | ")),
         row.names="VESTA_FUNC_GENE_ANN"
     ))
 }
@@ -3572,7 +3700,7 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
     return(DataFrame(
         Number=".",
         Type="String",
-        Description=paste(desc,collapse=" | "),
+        Description=paste0(desc[1],paste(desc[2:length(desc)],collapse=" | ")),
         row.names="VESTA_FUNC_VAR_ANN"
     ))
 }

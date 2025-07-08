@@ -54,8 +54,8 @@ startVesta <- function(conf) {
     # Bootstrap main database and test connection (will stop if problems)
     testMongoConnection("edimoclin")
     
-#~     # Initialize or open queue management db - absolute path
-#~     Q <- initq(.getQueueDb())
+    # Initialize or open queue management db - absolute path
+    Q <<- initq(.getQueueDb())
 
 #~     # Logger in database - index = 1 
 #~     logger_db <- suppressWarnings(layout_json(c("time","level","fn","user",

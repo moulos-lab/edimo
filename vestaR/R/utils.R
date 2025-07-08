@@ -683,6 +683,20 @@ generateConfigTemplate <- function() {
     return(result$name)
 }
 
+.analysisIdFromVariantId <- function(vid) {
+    con <- mongoConnect("variants")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=vid)
+        
+    ))
+    fields <- .toMongoJSON(list(analysis_id=1L))
+    result <- con$find(filterQuery,fields)
+    
+    return(result$analysis_id)
+}
+
 .getToolset <- function() {
     if (is.null(.CONFIG$software)) {
         log_error("FATAL! Software versions are not defined!")
