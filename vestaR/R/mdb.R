@@ -151,7 +151,7 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     
     json <- .toMongoJSON(tmpAdminUser)
     
-    con$insert(json)
+    invisible(con$insert(json))
 }
 
 .populateStatics <- function(uri) {
@@ -172,12 +172,12 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     sequencing_platform <- ..getSequencingPlatforms()
     sequencing_protocol <- ..getSequencingProtocols()
     sequencing_kit <- ..getSequencingKits()
-    variant_type <- ..getVariantType()
+    variant_type <- ..getVariantTypes()
     variant_zygosity <- ..getVariantZygosities()
-    variant_location <- ..getVariantLocations()
+    variant_location <- ..getVariantLocation()
     variant_effect_snpeff <- ..getVariantEffectSnpEff()
     pathocuts <- ..getPathocuts()
-    so_terms <- ..getSoTerms()
+    so_terms <- ..getVariantSoTerms()
     
     # Construct the data to be batch inserted
     statics <- list(
