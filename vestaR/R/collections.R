@@ -2013,143 +2013,143 @@
     )
 }
 
-#~ .defineVarstoresCollection <- function() {
-#~     return(
-#~     '{
-#~       "create": "varstores",
-#~       "validator": {
-#~         "$jsonSchema": {
-#~           "bsonType": "object",
-#~           "required": [
-#~             "_id",
-#~             "name",
-#~             "metadata",
-#~             "ownership"
-#~           ],
-#~           "properties": {
-#~             "_id": {
-#~               "bsonType": "objectId"
-#~             },
-#~             "name": {
-#~               "bsonType": "string"
-#~             },
-#~             "description": {
-#~               "bsonType": [
-#~                 "string",
-#~                 "null"
-#~               ]
-#~             },
-#~             "notes": {
-#~               "bsonType": [
-#~                 "string",
-#~                 "null"
-#~               ]
-#~             },
-#~             "metadata": {
-#~               "bsonType": "object",
-#~               "required": [
-#~                 "date_created",
-#~                 "date_updated",
-#~                 "organism",
-#~                 "genome_version"
-#~               ],
-#~               "properties": {
-#~                 "date_created": {
-#~                   "bsonType": "date"
-#~                 },
-#~                 "date_updated": {
-#~                   "bsonType": [
-#~                     "date",
-#~                     "null"
-#~                   ]
-#~                 },
-#~                 "organism": {
-#~                   "bsonType": [
-#~                     "string",
-#~                     "null"
-#~                   ]
-#~                 },
-#~                 "genome_vesion": {
-#~                   "bsonType": [
-#~                     "string",
-#~                     "null"
-#~                   ]
-#~                 }
-#~               }
-#~             },
-#~             "ownership": {
-#~               "bsonType": "object",
-#~               "required": [
-#~                 "inserted_by",
-#~                 "edited_by",
-#~                 "shared_with"
-#~               ],
-#~               "properties": {
-#~                 "inserted_by": {
-#~                   "bsonType": "object",
-#~                   "required": [
-#~                     "id",
-#~                     "fullname"
-#~                   ],
-#~                   "properties": {
-#~                     "id": {
-#~                       "bsonType": "objectId"
-#~                     },
-#~                     "fullname": {
-#~                       "bsonType": "string"
-#~                     }
-#~                   }
-#~                 },
-#~                 "edited_by": {
-#~                   "bsonType": [
-#~                     "object",
-#~                     "null"
-#~                   ],
-#~                   "required": [
-#~                     "id",
-#~                     "fullname"
-#~                   ],
-#~                   "properties": {
-#~                     "id": {
-#~                       "bsonType": "objectId"
-#~                     },
-#~                     "fullname": {
-#~                       "bsonType": "string"
-#~                     }
-#~                   }
-#~                 },
-#~                 "shared_with": {
-#~                   "bsonType": "array",
-#~                   "items": {
-#~                     "bsonType": "object",
-#~                     "required": [
-#~                       "id",
-#~                       "fullname"
-#~                     ],
-#~                     "properties": {
-#~                       "id": {
-#~                         "bsonType": "objectId"
-#~                       },
-#~                       "fullname": {
-#~                         "bsonType": "string"
-#~                       }
-#~                     }
-#~                   }
-#~                 }
-#~               }
-#~             }
-#~           },
-#~           "additionalProperties": true
-#~         }
-#~       },
-#~       "collation": {
-#~         "locale": "el",
-#~         "strength": 2
-#~       },
-#~       "validationLevel": "strict"
-#~     }'
-#~     )
-#~ }
+.defineVarstoresCollection <- function() {
+    return(
+    '{
+      "create": "varstores",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "name",
+            "metadata",
+            "ownership"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "objectId"
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "description": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "metadata": {
+              "bsonType": "object",
+              "required": [
+                "date_created",
+                "date_updated",
+                "organism",
+                "genome_version"
+              ],
+              "properties": {
+                "date_created": {
+                  "bsonType": "date"
+                },
+                "date_updated": {
+                  "bsonType": [
+                    "date",
+                    "null"
+                  ]
+                },
+                "organism": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "genome_vesion": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "ownership": {
+              "bsonType": "object",
+              "required": [
+                "inserted_by",
+                "edited_by",
+                "shared_with"
+              ],
+              "properties": {
+                "inserted_by": {
+                  "bsonType": "object",
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "edited_by": {
+                  "bsonType": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "fullname"
+                  ],
+                  "properties": {
+                    "id": {
+                      "bsonType": "objectId"
+                    },
+                    "fullname": {
+                      "bsonType": "string"
+                    }
+                  }
+                },
+                "shared_with": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "object",
+                    "required": [
+                      "id",
+                      "fullname"
+                    ],
+                    "properties": {
+                      "id": {
+                        "bsonType": "objectId"
+                      },
+                      "fullname": {
+                        "bsonType": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "collation": {
+        "locale": "el",
+        "strength": 2
+      },
+      "validationLevel": "strict"
+    }'
+    )
+}
 
 .defineTableviewsCollection <- function() {
     return(
