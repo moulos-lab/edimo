@@ -316,7 +316,7 @@
                 },
                 "email": {
                   "bsonType": "string",
-                  "pattern": "^[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}$"
+                  "pattern": "^[\\\\w.%+-]+@[\\\\w.-]+\\\\.[A-Za-z]{2,}$"
                 },
                 "tel": {
                   "bsonType": [
@@ -514,7 +514,7 @@
                     "string",
                     "null"
                   ]
-                },
+                }
               }
             },
             "ownership": {
@@ -767,7 +767,7 @@
                     "string",
                     "null"
                   ]
-                },
+                }
               }
             },
             "progress": {
@@ -1719,7 +1719,7 @@
                 "string",
                 "null"
               ]
-            },    )
+            },
             "metadata": {
               "bsonType": "object",
               "required": [
