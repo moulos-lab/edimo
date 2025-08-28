@@ -2280,6 +2280,57 @@
     )
 }
 
+.defineVariantsIndexes <- function() {
+    return(
+    '{
+       "createIndexes": "variants",
+       "indexes": [{
+         "key": { 
+           "analysis_id": 1 
+         },
+         "name": "variant_analysis_index"
+       },{
+         "key": { 
+           "identity.chr": 1,
+           "identity.start": 1,
+           "identity.ref": 1,
+           "identity.alt": 1
+         },
+         "name": "variant_identity_index"
+       },{
+         "key": { 
+           "search_text": "text" 
+         },
+         "name": "variants_text_search"
+       }]
+    }'
+    )
+}
+
+
+#~ .defineVariantsIndexes <- function() {
+#~     return(c(
+#~     '{
+#~        "analysis_id": 1
+#~      },{
+#~        "name" : "variant_analysis_index"
+#~      }',
+#~     '{
+#~        "identity.chr": 1,
+#~        "identity.start": 1,
+#~        "identity.ref": 1,
+#~        "identity.alt": 1
+#~      },{
+#~        "name" : "variant_identity_index"
+#~      }',
+#~     '{ 
+#~         "search_text": "text" 
+#~      },{
+#~         "name" : "variants_text_search"
+#~      }'
+#~     ))
+#~ }
+
 #~ .defineStatesCollection <- function() {
 #~     return(
 #~     '{

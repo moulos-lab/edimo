@@ -83,9 +83,15 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     con <- mongo(url=uri)
     on.exit(con$disconnect())
     
+    # Initiate all collections from the schemas we have
     schemas <- .localCollectionDef()
     for (n in names(schemas))
         con$run(schemas[[n]])
+    
+    # Add indexes that can be added
+    indexes <- .localIndexDef()
+    for (n in names(indexes))
+        con$run(indexes[[n]])
     
     # We also need to populate certain static collections - options etc.
     message("Populating statics...")
@@ -232,6 +238,12 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
         varstores=.defineVarstoresCollection()#,
         #states=.defineStatesCollection()#,
         #varstore_variants=.defineVarstoreVariantsCollection()
+    ))
+}
+
+.localIndexDef <- function() {
+    return(list(
+        variants=.defineVariantsIndexes()
     ))
 }
 
