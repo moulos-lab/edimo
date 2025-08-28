@@ -181,21 +181,29 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
     
     # Construct the data to be batch inserted
     statics <- list(
-        static_type="static_form_options",
-        countries=countries,
-        sex=sex,
-        analysis_status=analysis_status,
-        organism=organism,
-        genome_version=genome_version,
-        sequencing_platform=sequencing_platform,
-        sequencing_protocol=sequencing_protocol,
-        sequencing_kit=sequencing_kit,
-        variant_type=variant_type,
-        variant_zygosity=variant_zygosity,
-        variant_location=variant_location,
-        variant_effect_snpeff=variant_effect_snpeff,
-        pathocust=pathocuts,
-        so_terms=so_terms
+        list(
+            static_type="static_form_options",
+            countries=countries,
+            sex=sex,
+            analysis_status=analysis_status,
+            organism=organism,
+            genome_version=genome_version,
+            sequencing_platform=sequencing_platform,
+            sequencing_protocol=sequencing_protocol,
+            sequencing_kit=sequencing_kit,
+            variant_type=variant_type,
+            variant_zygosity=variant_zygosity,
+            variant_location=variant_location,
+            variant_effect_snpeff=variant_effect_snpeff,
+            pathocust=pathocuts,
+            so_terms=so_terms
+        ),
+        list(
+            static_type="endpoints",
+            main_endpoint=.CONFIG$endpoints$main,
+            kc_endpoint=.CONFIG$endpoints$keycloak,
+            kc_client_secret=.CONFIG$auth$keycloak
+        )
     )
     statics <- .toMongoJSON(statics,pretty=T)
     

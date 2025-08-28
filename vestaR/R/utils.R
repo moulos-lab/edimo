@@ -180,7 +180,7 @@ generateConfigTemplate <- function() {
     .CONFIG$paths <- conf$paths
     .CONFIG$auth <- conf$auth
     .CONFIG$tmp_admin <- conf$tmp_admin
-    .CONFIG$rest_api <- conf$rest_api
+    .CONFIG$endpoints <- conf$endpoints
     .CONFIG$host <- conf$host
     .CONFIG$mail <- conf$mail
     .CONFIG$software <- conf$software

@@ -4,7 +4,7 @@
 .CONFIG$paths <- 
 .CONFIG$auth <-
 .CONFIG$tmp_admin <- 
-.CONFIG$rest_api <- 
+.CONFIG$endpoints <- 
 .CONFIG$host <- 
 .CONFIG$mail <- 
 .CONFIG$software <- 

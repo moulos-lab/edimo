@@ -99,6 +99,7 @@ startVesta <- function(conf) {
     server <- pr() %>% 
         pr_mount("/auth",pr_auth) %>% 
         pr_mount("/api",pr_apis) %>% 
+        pr_set_debug(debug=TRUE) %>% 
         pr_run(host="0.0.0.0",port=8383)
         
     #process <- callr::r_bg(function() {
