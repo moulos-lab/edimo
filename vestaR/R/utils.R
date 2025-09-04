@@ -239,7 +239,7 @@ generateConfigTemplate <- function() {
         iss="edimo-vesta",
         sub=username,
         exp=Sys.time() + 86400, # Token expiry time (24 hours)
-        uid=result$`_id`, # Include user's id in the JWT payload
+        #uid=result$`_id`, # Include user's id in the JWT payload
         name=name,
         surname=surname,
         email=email
@@ -317,7 +317,7 @@ generateConfigTemplate <- function() {
 
 .userVerificationMail <- function(name,surname,addr,host,endpoint,token) {
     mailConf <- .CONFIG$mail
-    mailBody<- .glueUserVerificationMail(name,surname,email,host,endpoint,token)
+    mailBody<- .glueUserVerificationMail(name,surname,addr,host,endpoint,token)
     email <- emayili::envelope()
     email <- email %>%
         emayili::from(mailConf$from) %>%

@@ -23,7 +23,6 @@ userRegistrationWorkflow <- function(req,res){
         username=1L,
         emails=1L
     ))
-    
     log_debug("Checking existence for user ",username," with email ",email,".")
     log_debug(.skipFormatter("MongoDB query is: ",query))
     
@@ -48,7 +47,7 @@ userRegistrationWorkflow <- function(req,res){
         res$status <- 400
         return(list(error=err))
     }
-
+    
     # Assuming user not exists, find institution details (if available)
     # to auto-fill user profile. The institution should exist because the list
     # in front-end is populated from the database - so no further checks.
