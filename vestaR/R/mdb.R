@@ -208,7 +208,9 @@ testMongoConnection <- function(db=NULL,conf=NULL) {
             static_type="endpoints",
             main_endpoint=.CONFIG$endpoints$main,
             kc_endpoint=.CONFIG$endpoints$keycloak,
-            kc_client_secret=.CONFIG$auth$keycloak
+            kc_client_secret=.CONFIG$auth$keycloak_secret,
+            kc_realm=.CONFIG$auth$keycloak_realm,
+            kc_client_id=.CONFIG$auth$keycloak_client
         )
     )
     statics <- .toMongoJSON(statics,pretty=T)
