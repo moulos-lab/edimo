@@ -316,6 +316,9 @@ generateConfigTemplate <- function() {
 }
 
 .userVerificationMail <- function(name,surname,addr,host,endpoint,token) {
+    # Temporary hack for firewall...
+    host <- sub(":8383","",host)
+    
     mailConf <- .CONFIG$mail
     mailBody<- .glueUserVerificationMail(name,surname,addr,host,endpoint,token)
     email <- emayili::envelope()

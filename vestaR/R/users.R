@@ -93,7 +93,7 @@ userRegistrationWorkflow <- function(req,res){
 userLogin <- function(req,res) {
     # Parse input from POST request body
     username <- tolower(req$body$username)
-    password <- tolower(req$body$password)
+    password <- req$body$password
     
     # Initialize connection and make sure it is closed on function end
     con <- mongoConnect("users")
