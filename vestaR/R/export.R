@@ -690,8 +690,8 @@ exportVariants <- function(aid=NULL,vid=NULL,que=NULL,
         "annotation_variant_oncokb_treatments_drug") %in% names(
         firstProjection))) {
         # Remove the separate fields
-        if ("annotation_variant_oncokb_treatments_code
-            " %in% names(firstProjection))
+        if ("annotation_variant_oncokb_treatments_code" %in% names(
+            firstProjection))
             firstProjection[["annotation_variant_oncokb_treatments_code"]] <- 
                 NULL
         if ("annotation_variant_oncokb_treatments_drug" %in% names(

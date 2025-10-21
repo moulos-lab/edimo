@@ -120,6 +120,7 @@ downladVariants <- function(res,req) {
         res$status <- 400
         return(list(error=msg))
     }
+
     # Also if the analysis exists - probably overkill
     if (!is.null(aid) && !.checkId(aid,"analysis")) {
         msg <- paste0("Analysis id (aid) ",aid," does not exist in the ",
@@ -132,7 +133,7 @@ downladVariants <- function(res,req) {
     
     # Get the running user name, existence validated
     uname <- .getUserName(uid)
-    
+
     # Only one of aid, vid or que can be provided - respond early
     checkMain <- c(!is.null(aid),!is.null(vid),!is.null(que))
     if (length(which(checkMain)) > 1) {
@@ -144,7 +145,9 @@ downladVariants <- function(res,req) {
         return(list(error=err))
     }
     
+
     # If a query has been passed, sanitize it
+    oid <- aid  # For later logging as NULL crashes the logger
     if (!is.null(que) && !is.null(que$analysis_id)) {
         oid <- .extractObjectId(que$analysis_id)
         que$analysis_id <- list(`$oid`=oid)
@@ -153,9 +156,10 @@ downladVariants <- function(res,req) {
         groups <- .mongoVariantFieldGroupNames()
     if (!is.null(fields) && length(fields) == 1 && fields == "all")
         fields <- .mongoVariantFields()
-    
+
     tryCatch({
-        log_info("Preparing download file for analysis ",aid," #USER: ",uname)
+        log_info("Preparing download file for analysis ",oid," #USER: ",uname)
+
         theFile <- exportVariants(aid=aid,vid=vid,que=que,groups=groups,
             fields=fields,outFormat=form,canonical=canonical)
         
@@ -169,14 +173,14 @@ downladVariants <- function(res,req) {
         res$setHeader("Content-Type","application/x-gzip")
         res$setHeader("Content-Disposition",paste0('attachment; filename="',
             pre,suf,'.',form,'.gz"'))
-            
+        
         # The only way to return binary, answer from Gemini
-        log_info("Sending requested file for analysis ",aid," #USER: ",uname)
+        log_info("Sending requested file for analysis ",oid," #USER: ",uname)
         res$body <- readBin(theFile,what="raw",n=file.info(theFile)$size)
         res
     },error=function(e) {
         log_error("File creation failed: ",e$message," #USER: ",uname)
-        
+
         res$status <- 500
         return(list(error=paste0("File creation failed: ",e$message)))
     })
