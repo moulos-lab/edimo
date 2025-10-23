@@ -302,7 +302,7 @@ generateConfigTemplate <- function() {
     return(glue(
         'Dear {name} {surname},
         
-        Thank you for .userVerificationMailregistering with EDIMO APP.
+        Thank you for registering with VESTA.
         
         Please verify your email address ({email}) to activate your account
         using the following link:
@@ -311,7 +311,7 @@ generateConfigTemplate <- function() {
         
         Best regards,
         
-        The EDIMO app team'
+        The VESTA team'
     ))
 }
 
