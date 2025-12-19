@@ -1,9 +1,9 @@
 # Load R libraries
 library(base64enc)
 library(bcrypt)
-# Maybe later only at namespace
-library(BSgenome)
-library(BSgenome.Hsapiens.NCBI.GRCh38)
+## Maybe later only at namespace
+#library(BSgenome)
+#library(BSgenome.Hsapiens.NCBI.GRCh38)
 #
 library(emayili)
 library(ensembldb)
