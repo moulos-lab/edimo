@@ -847,3 +847,52 @@ cmclapply <- function(...,rc) {
     sink(type="message")
     sink(type="output")
 }
+
+################################################################################
+
+# Some admin utilities/helpers
+
+._getAnalysisDoc <- function(id) {
+    con <- mongoConnect("analyses")
+    on.exit(mongoDisconnect(con))
+    
+    query <- .toMongoJSON(list(
+        `_id`=list(`$oid`=id)
+    ))
+    tot <- con$count(query)
+    iter <- con$iterate(query)
+    
+    analysis <- NULL
+    while(!is.null(x <- iter$one()))
+        analysis <- x
+    
+    return(analysis)
+}
+
+._getUserDoc <- function(id) {
+    con <- mongoConnect("users")
+    on.exit(mongoDisconnect(con))
+    
+    query <- .toMongoJSON(list(
+        `_id`=list(`$oid`=id)
+    ))
+    tot <- conv$count(query)
+    iter <- conv$iterate(query)
+    
+    user <- NULL
+    while(!is.null(x <- iter$one()))
+        user <- x
+    
+    return(user)
+}
+
+#variants <- conv$find(query,fields=fields)
+
+# We need to deparse the variants data frame to list
+variants <- vector("list",vartot)
+counter <- 0
+while(!is.null(x <- variter$one())) {
+    counter <- counter + 1
+    variants[[counter]] <- x
+}
+names(variants) <- sapply(variants,function(x) return(x$`_id`))

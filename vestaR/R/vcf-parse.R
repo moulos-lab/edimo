@@ -197,7 +197,7 @@ annotateAndInsertVariants <- function(aid) {
                     log_info("Statistics calculation for analysis ",aid,
                         " successful!")
                 else
-                    log_info("Statistics insert for analysis ",aid," failed! ",
+                    log_error("Statistics insert for analysis ",aid," failed! ",
                         "Contact admins.")
             }
         }
@@ -214,6 +214,7 @@ annotateAndInsertVariants <- function(aid) {
         .updateAnalysisProgress(aid,8,100*(8/nsteps),"Failed")
         .updateAnalysisFailReason(aid,
             "Failed to copy analysis file to proper location! Check logs.")
+        log_error("Failed to copy analysis file to proper location!")
         stop("Failed to copy analysis file to proper location! Check logs.")
     }
     
@@ -909,7 +910,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             if (length(em) > 0)
                 DF[em,n] <- NA
             if (any(lengths(DF[,n]) > 1))
-                res <- collapseCharacterList(DF[,n])
+                res <- .collapseCharacterList(DF[,n])
             else
                 res <- unlist(DF[,n])
         }
@@ -918,7 +919,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             if (length(em) > 0)
                 DF[em,n] <- NA
             if (any(lengths(DF[,n]) > 1))
-                res <- collapseCharacterList(DF[,n])
+                res <- .collapseCharacterList(DF[,n])
             else
                 res <- unlist(DF[,n])
         }
@@ -927,7 +928,7 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             if (length(em) > 0)
                 DF[em,n] <- NA
             if (any(lengths(DF[,n]) > 1))
-                res <- collapseCharacterList(DF[,n])
+                res <- .collapseCharacterList(DF[,n])
             else
                 res <- unlist(DF[,n])
         }

@@ -1,10 +1,16 @@
 # Load R libraries
-library(bcrypt)
 library(base64enc)
+library(bcrypt)
+# Maybe later only at namespace
+library(BSgenome)
+library(BSgenome.Hsapiens.NCBI.GRCh38)
+#
 library(emayili)
+library(ensembldb)
 library(glue)
 library(future)
 library(future.callr)
+library(gtexr)
 library(httr)
 library(jose)
 library(jsonlite)
