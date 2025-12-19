@@ -885,14 +885,3 @@ cmclapply <- function(...,rc) {
     
     return(user)
 }
-
-#variants <- conv$find(query,fields=fields)
-
-# We need to deparse the variants data frame to list
-variants <- vector("list",vartot)
-counter <- 0
-while(!is.null(x <- variter$one())) {
-    counter <- counter + 1
-    variants[[counter]] <- x
-}
-names(variants) <- sapply(variants,function(x) return(x$`_id`))
