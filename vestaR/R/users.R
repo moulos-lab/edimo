@@ -362,7 +362,7 @@ userResetPassword <- function(req,res) {
     # Parse input from POST request body
     username <- tolower(req$body$username)
     email <- tolower(req$body$email)
-    new_password <- tolower(req$body$new_password)
+    new_password <- req$body$new_password
     
     # Initialize connection and make sure it is closed on function end
     con <- mongoConnect("users")

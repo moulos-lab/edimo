@@ -885,3 +885,19 @@ cmclapply <- function(...,rc) {
     
     return(user)
 }
+
+._unlockUserAccount <- function(id) {
+    con <- mongoConnect("users")
+    on.exit(mongoDisconnect(con))
+    
+    filterQuery <- .toMongoJSON(list(
+        `_id`=list(`$oid`=id)
+    ))
+    updateQuery <- .toMongoJSON(list(
+        `$set`=list(
+            metadata.login_attempts=0L,
+            metadata.account_locked=FALSE
+        )
+    ))
+    invisible(con$update(filterQuery,updateQuery))
+}
