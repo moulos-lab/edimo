@@ -535,19 +535,26 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             }))
             rind <- .filterSoTermsForApiCalls(allSoTerms)
             oncokbHits <- .queryOncoKB(fixed$hgvsg[rind],gv)
-            names(oncokbHits) <- fixed$hgvsg[rind]
-            # Clean the hits from empty genes because of improper hgvs parsing
-            oncokbHits = oncokbHits[!sapply(oncokbHits,
-                function(x) is.null(x$gene_symbol) || x$oncogenic=="Unknown")]
-            log_info("Retrieved ",length(oncokbHits)," hits")
-            #message("    Retrieved ",length(oncokbHits)," hits")
+            if (!is.null(oncokbHits)) {
+                names(oncokbHits) <- fixed$hgvsg[rind]
+                # Clean the hits from empty genes because of improper hgvs 
+                # parsing
+                oncokbHits = oncokbHits[!sapply(oncokbHits,
+                    function(x) is.null(x$gene_symbol) 
+                        || x$oncogenic=="Unknown")]
+                log_info("Retrieved ",length(oncokbHits)," hits")
+                #message("    Retrieved ",length(oncokbHits)," hits")
+            }
+            else
+                log_info("Retrieved 0 hits or an error occured!")
             
             log_info("CiVIC")
             #message("  CiVIC")
             civicHits <- .findCivicByOneLetterAA(fixed,annList,gv)
             log_info("Retrieved ",if (is.null(civicHits)) 0 else 
                 nrow(civicHits)," hits")
-            #message("    Retrieved ",nrow(civicHits)," hits")
+            #message("Retrieved ",if (is.null(civicHits)) 0 else 
+            #    nrow(civicHits)," hits")
             
             return(list(
                 disgenet=disgenetVariantHits,
