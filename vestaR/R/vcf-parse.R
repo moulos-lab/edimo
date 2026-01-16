@@ -246,8 +246,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     
     # We now decide whether to read the total file or by chunks. If the file is
     # larger than 5000 lines, we read by chunks of 5000
-    #log_info("Reading VCF file ",vcfFile)
-    message("Reading VCF file ",vcfFile)
+    log_info("Reading VCF file ",vcfFile)
+    #message("Reading VCF file ",vcfFile)
     nl <- R.utils::countLines(vcfFile)
     log_info("Input VCF file contains around ",nl," variants")
     #message("Input VCF file contains around ",nl," variants")
@@ -265,18 +265,34 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
                 break
             log_info("Annotating chunk ",chunkNo)
             #message("Annotating chunk ",chunkNo)
-            nucleoGenos <- readGT(vcfCon,nucleotides=TRUE)
+            #nucleoGenos <- readGT(vcfCon,nucleotides=TRUE)
+            nucleoGenos <- tryCatch({
+                readGT(vcfCon,nucleotides=TRUE)
+            },error=function(e) {
+                log_warn("Error parsing genotypes in nucleotide format: ",
+                    e$message)
+                log_info("Trying to parse potential polyploidies")
+                return(readPolyGT(vcfCon))
+            })
             varsList[[chunkSize]] <- .vcfToListWorker(vcf,nucleoGenos,gv,aType)
         }
         close(vcfCon)
         return(do.call("c",varsList))
     }
     else {
-        #log_info("I will annotate in single pass")
+        log_info("Αnnotating in a single pass")
         # Warnings may be produced during validation - some dNSFP versions 
         # produce problematic VCF headers
         vcf <- suppressWarnings(readVcf(vcfFile))
-        nucleoGenos <- readGT(vcfFile,nucleotides=TRUE)
+        # If polyploid variants exist (e.g. Mutect2) readGT fails...
+        #nucleoGenos <- readGT(vcfFile,nucleotides=TRUE)
+        nucleoGenos <- tryCatch({
+            readGT(vcfFile,nucleotides=TRUE)
+        },error=function(e) {
+            log_warn("Error parsing genotypes in nucleotide format: ",e$message)
+            log_info("Trying to parse potential polyploidies")
+            return(readPolyGT(vcfFile))
+        })
         return(.vcfToListWorker(vcf,nucleoGenos,gv,aType))
     }
 }
@@ -529,7 +545,8 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             log_info("CiVIC")
             #message("  CiVIC")
             civicHits <- .findCivicByOneLetterAA(fixed,annList,gv)
-            log_info("Retrieved ",nrow(civicHits)," hits")
+            log_info("Retrieved ",if (is.null(civicHits)) 0 else 
+                nrow(civicHits)," hits")
             #message("    Retrieved ",nrow(civicHits)," hits")
             
             return(list(
@@ -1653,3 +1670,214 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     #    delete_logger_index(index=1)
     #},add=TRUE)
 }
+
+readPolyGT <- function(file,param=ScanVcfParam(),row.names=TRUE) {
+    lst <- .readLiteGT(file,param,row.names=row.names)
+    res <- .geno2genoPoly(lst)
+    rowRanges <- lst$rowRanges
+    if (row.names)
+        dimnames(res)[[1]] <- names(rowRanges)
+    return(res)
+}
+
+.readLiteGT <- function(file,param,row.names) {
+    if (is(param,"ScanVcfParam")) {
+        which <- vcfWhich(param)
+        samples <- vcfSamples(param)
+    } else {
+        which <- param 
+        samples <- character()
+    }
+    param <- ScanVcfParam("ALT",NA,"GT",samples,which=which)
+    scn <- scanVcf(file,param=param,row.names=row.names)
+    return(VariantAnnotation:::.collapseLists(scn,param))
+}
+
+.geno2genoPoly <- function(lst,ALT=NULL,REF=NULL,GT=NULL) {
+    if (is.null(ALT) && is.null(REF) && is.null(GT)) {
+        # Safe as multiallelics come normalized
+        ALT <- as.character(lst$ALT,use.names = FALSE)
+        REF <- as.character(lst$REF,use.names = FALSE)
+        GT  <- lst$GENO$GT
+    }
+
+    res <- GT
+
+    ## normalize missing
+    missing <- is.na(GT) | GT %in% c(".", "./.", ".|.")
+    GT[missing] <- NA_character_
+
+    ## split GT into allele indices (any ploidy)
+    GTsplit <- strsplit(as.vector(GT), "[/|]")
+
+    ## allele lookup table (biallelic guaranteed)
+    alleles <- cbind(REF,ALT)
+    alleles <- as.vector(t(alleles)) # REF, ALT, REF, ALT, ...
+
+    ## cumulative offsets per variant
+    REFcs <- cumsum(elementNROWS(REF))
+    ALTcs <- cumsum(elementNROWS(ALT))
+    cs <- REFcs + c(0,head(ALTcs,-1))
+
+    ## iterate safely over genotypes
+    for (i in seq_along(GTsplit)) {
+        if (missing[i])
+            next
+        idx <- suppressWarnings(as.integer(GTsplit[[i]]))
+        if (any(is.na(idx)))
+            next
+
+        ## map allele indices → bases
+        offset <- cs[i]
+        bases <- alleles[offset + idx]
+
+        ## summarize dosage
+        tab <- table(bases)
+        if (length(bases) == 2 && length(tab) == 2) {
+            res[i] <- paste(bases,collapse="/")
+            next
+        }
+        res[i] <- paste(paste0(names(tab),"(",as.integer(tab),")"),
+            collapse="/")
+    }
+
+    res[missing] <- NA_character_
+    return(res)
+}
+
+#~ ..collapseLists <- function(vcf,param) {
+#~     idx <- sapply(vcf,function(elt) length(elt$rowRanges) > 0L)
+#~     if (!sum(idx))
+#~         return(vcf[[1]])
+#~     if (length(vcf) > 1L)
+#~         vcf <- vcf[idx]
+#~     if (is(param,"ScanVcfParam"))
+#~         paramRangeID <- names(unlist(vcfWhich(param), use.names=FALSE))[idx]
+#~     else
+#~         paramRangeID <- names(param)[idx]
+#~     if (is.null(paramRangeID))
+#~         paramRangeID <- rep(NA_character_, length(vcf))
+
+#~     ## single range in 'which'
+#~     if (1L == length(vcf)) {
+#~         lst <- vcf[[1]]
+#~         lst$paramRangeID <- as.factor(rep(paramRangeID, length(lst$rowRanges)))
+#~     } 
+#~     else {
+#~      ## multiple ranges in 'which'
+#~      lst <- lapply(names(vcf[[1]]), function(elt) {
+#~          suppressWarnings(do.call(c, unname(lapply(vcf, "[[", elt))))
+#~      })
+#~         names(lst) <- names(vcf[[1]])
+#~         len <- unlist(lapply(vcf,function(elt) length(elt$rowRanges)),
+#~          use.names=FALSE)
+#~         paramRangeID <- as.factor(rep(paramRangeID,len))
+
+#~         ## collapse info and geno
+#~         info <- lst$INFO
+#~         sp <- split(unname(info), unique(names(info)))
+#~         sp <- sp[unique(names(info))]
+#~         lst$INFO <- lapply(sp,function(elt) {
+#~          d <- dim(elt[[1]])
+#~          if (is(elt[[1]],"list"))
+#~              as.matrix(elt)
+#~          else if (is(elt[[1]],"array") && !is.na(d[3])) {
+#~              pc <- lapply(seq_len(d[2]),function(i) {
+#~                  do.call(rbind,lapply(elt,"[", ,i,))
+#~              })
+#~              array(do.call(c,pc),c(length(lst$rowRanges),d[2],d[3]))
+#~          }
+#~          else
+#~              do.call(c,elt)
+#~      })
+#~         geno <- lst$GENO
+#~         sp <- split(geno, unique(names(geno)))
+#~         lst$GENO <- lapply(sp,function(elt) {
+#~          d <- dim(elt[[1]])
+#~          if (!is.na(d[3])) {
+#~              pc <- lapply(seq_len(d[3]), function(i) {
+#~                  do.call(rbind, lapply(elt, "[", ,,i))
+#~              })
+#~              cmb <- array(do.call(c,pc),c(length(lst$rowRanges),d[2],d[3]))
+#~              cmb
+#~          } 
+#~          else {
+#~              trans <- lapply(elt, t)
+#~              cmb <- matrix(do.call(c,trans),length(lst$rowRanges),d[2],
+#~                  byrow=TRUE)
+#~              cmb
+#~          }
+#~      })
+#~         lst$paramRangeID <- paramRangeID
+#~     }
+#~     lst
+#~ }
+
+#~ .geno2genoPoly <- function(lst, ALT=NULL, REF=NULL, GT=NULL)
+#~ {
+#~     if (is.null(ALT) && is.null(REF) && is.null(GT)) {
+#~         ALT <- lst$ALT
+#~         REF <- as.character(lst$REF, use.names = FALSE)
+#~         GT  <- lst$GENO$GT
+#~     }
+
+#~     res <- GT
+
+#~     ## normalize missing
+#~     missing <- is.na(GT) | GT %in% c(".", "./.", ".|.")
+#~     GT[missing] <- NA_character_
+
+#~     ## split genotypes (variable ploidy)
+#~     GTsplit <- strsplit(GT, "[/|]")
+
+#~     ## allele lookup (biallelic guaranteed)
+#~     alleles <- as.vector(rbind(REF, ALT))
+
+#~     ## offsets per record
+#~     REFcs <- cumsum(elementNROWS(REF))
+#~     ALTcs <- cumsum(elementNROWS(ALT))
+#~     cs <- REFcs + c(0, head(ALTcs, -1))
+
+#~     ## per-genotype formatter
+#~     fmt_one <- function(idx, offset) {
+#~         if (is.null(idx))
+#~             return(NA_character_)
+
+#~         idx <- suppressWarnings(as.integer(idx))
+#~         if (anyNA(idx))
+#~             return(NA_character_)
+
+#~         bases <- alleles[offset + idx + 1]
+#~         tab <- table(bases)
+
+#~         ## classic diploid display
+#~         if (length(bases) == 2L && length(tab) == 2L) {
+#~             return(paste(bases, collapse = "/"))
+#~         }
+
+#~         paste0(
+#~             paste0(names(tab), "\u00D7", as.integer(tab)),
+#~             collapse = " / "
+#~         )
+#~     }
+
+#~     ## apply in C-level loop
+#~     res[!missing] <- vapply(
+#~         which(!missing),
+#~         function(i) fmt_one(GTsplit[[i]], cs[i]),
+#~         FUN.VALUE = character(1)
+#~     )
+
+#~     res
+#~ }
+
+#~ library(VariantAnnotation)
+
+#~ #/media/data/resources/edimo/workspace/users/68f8a60ff9c84538290b48cd/analyses/6964e5ed44d1ff504426529e
+
+#~ vcfFile <- "6964e56444d1ff504426529d.vcf"
+
+#~ vcf <- suppressWarnings(readVcf(vcfFile))
+
+
+
