@@ -1049,13 +1049,15 @@
                     "minQual": {
                       "bsonType": [
                         "double",
-                        "int"
+                        "int",
+                        "null"
                       ]
                     },
                     "maxQual": {
                       "bsonType": [
                         "double",
-                        "int"
+                        "int",
+                        "null"
                       ]
                     },
                     "minDp": {
