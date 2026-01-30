@@ -30,7 +30,7 @@ annotateVcf <- function(vcfFile,gv=c("hg19","hg38"),aid=NULL) {
     
     # 0. Check chromosome names and rename if necessary
     seqStyle <- .guessGenomeStyle(vcfFile)
-    if (seqStyle == "UCSC")
+    if (any(seqStyle == "UCSC"))
         .chrRename(vcfFile,gv)
     else # Simply file copy to continue the flow
         cp <- file.copy(from=vcfFile,to=file.path(vcfDir,"00_chrom_rename.vcf"))
@@ -834,12 +834,13 @@ stripVcf <- function(vcfFile,keepExtraFields=TRUE,cnvs=TRUE) {
     # Firstly keep standard chromomosomes, as problems may arise later
     # Remove from seqlevels/seqinfo
     cind <- grep("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",seqlevels(vcf),perl=TRUE)
-    seqlevels(vcf) <- seqlevels(vcf)[cind]
+    seqlevels(vcf,pruning.mode="coarse") <- seqlevels(vcf)[cind]
     # Remove from vcf object header metadata, otherwise written in output
     mind <- grep("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",
         rownames(meta(header(vcf))$contig),perl=TRUE)
     meta(header(vcf))$contig <- meta(header(vcf))$contig[mind,,drop=FALSE]
-    # Remove from actual variants - if any
+    # Remove from actual variants - if any (although this is taken care by
+    # pruning.mode="coarse" above)
     citf <- grepl("^(1?[1-9]|1[0-9]|2[0-2]|X|Y|MT)$",seqnames(vcf),perl=TRUE)
     vcf <- vcf[as.logical(citf)]
     

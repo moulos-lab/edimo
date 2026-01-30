@@ -346,7 +346,8 @@
         "transcript_sequence_variant",
         "disruptive_inframe_deletion",
         "disruptive_inframe_insertion",
-        "stop_gained"
+        "stop_gained",
+        "start_lost"
     ))
 }
 
