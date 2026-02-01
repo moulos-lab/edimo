@@ -155,12 +155,13 @@ annotateAndInsertVariants <- function(aid) {
         
         log_info("Inserting to database for analysis ",aid)
         #message("Inserting to database for analysis ",aid)
-        if (length(theList) >= .getJsonifyLimit()) {
-            mongoJson <- cmclapply(theList,.toMongoJSON,rc=.getCoresFraction())
-            mongoJson <- unlist(mongoJson,recursive=FALSE)
-        }
-        else
-            mongoJson <- sapply(theList,.toMongoJSON)
+        #if (length(theList) >= .getJsonifyLimit()) {
+        #    mongoJson <- cmclapply(theList,.toMongoJSON,rc=.getCoresFraction())
+        #    mongoJson <- unlist(mongoJson,recursive=FALSE)
+        #}
+        #else
+        #    mongoJson <- sapply(theList,.toMongoJSON)
+        mongoJson <- sapply(theList,.toMongoJSON)
         
         ins <- tryCatch({
             conv$insert(mongoJson)

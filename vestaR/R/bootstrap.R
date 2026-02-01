@@ -37,7 +37,7 @@ library(VariantAnnotation)
 #~ library(ensembldb)
 #~ library(EnsDb.Hsapiens.v86)
 
-plan(callr)
+plan(future.callr::callr,workers=2)
 
 # Load local libraries
 source("aggregations.R")
