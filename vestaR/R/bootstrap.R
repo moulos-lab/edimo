@@ -23,6 +23,7 @@ library(promises)
 library(R.utils)
 library(wand)
 
+library(GenomeInfoDb)
 library(VariantAnnotation)
 
 # ACMG related libraries - temporarily here

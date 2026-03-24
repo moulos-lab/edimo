@@ -188,8 +188,12 @@ annotateAndInsertVariants <- function(aid) {
             upd <- tryCatch({
                 updateAnalysisStats(aid)
             },error=function(e) {
+                if (is.null(e$message))
+                    emsg <- "Document failed validation."
+                else
+                    emsg <- e$message
                 log_error("Statistics calculation for analysis ",aid," failed!",
-                    e$messsage)
+                    emsg)
                 return(NULL)
             })
             
@@ -377,7 +381,15 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
     vcfVariants <- unlist(rsids)
     vcfVariants <- vcfVariants[grepl("^rs",vcfVariants)]
     vcfGenes <- unique(unlist(lapply(annList,function(x) x[,"gene_name"])))
-        
+
+    # Sometimes, we may have only one gene or variant... This will crash when
+    # we convert to JSON as by default we have auto_unbox=TRUE (required for
+    # 99.9% of our usage)
+    if (length(vcfGenes) == 1)
+        vcfGenes <- list(vcfGenes)
+    if (length(vcfVariants) == 1)
+        vcfVariants <- list(vcfVariants)
+    
     geneResource <- .makeGeneResource(aType,vcfGenes)
     variantResource <- .makeVariantResource(aType,vcfVariants,annList,fixed,gv)
     
@@ -491,8 +503,10 @@ vcfToList <- function(vcfFile,gv=c("hg19","hg38"),chunkSize=5000,
             log_info("Clinical Genomics Database")
             #message("  Clinical Genomics Database")
             cgdHits <- .findCgdInheritanceByGene(vcfGenes)
-            log_info("Retrieved ",nrow(cgdHits)," hits")
-            #message("    Retrieved ",nrow(cgdHits)," hits")
+            log_info("Retrieved ",if (is.null(cgdHits)) 0 else 
+                nrow(cgdHits)," hits")
+            #message("    Retrieved ",if (is.null(cgdHits)) 0 else 
+            #    nrow(cgdHits)," hits")
             
             # Silently also add SO localizations
             return(list(

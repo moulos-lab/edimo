@@ -1041,5 +1041,9 @@ updateAnalysisStats <- function(aid) {
     ))
     key <- "identity.chr"
     
-    return(con$distinct(key,query))
+    presentContigs <- con$distinct(key,query)
+    if (length(presentContigs==1))
+        presentContigs <- list(presentContigs)
+    
+    return(presentContigs)
 }
